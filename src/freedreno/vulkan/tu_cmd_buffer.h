@@ -72,8 +72,9 @@ enum tu_cmd_dirty_bits
    TU_CMD_DIRTY_PROGRAM = BIT(11),
    TU_CMD_DIRTY_RAST_ORDER = BIT(12),
    TU_CMD_DIRTY_FEEDBACK_LOOPS = BIT(13),
+   TU_CMD_DIRTY_FS = BIT(14),
    /* all draw states were disabled and need to be re-enabled: */
-   TU_CMD_DIRTY_DRAW_STATE = BIT(14)
+   TU_CMD_DIRTY_DRAW_STATE = BIT(15)
 };
 
 /* There are only three cache domains we have to care about: the CCU, or
@@ -277,7 +278,6 @@ struct tu_render_pass_state
 {
    bool xfb_used;
    bool has_tess;
-   bool has_gs;
    bool has_prim_generated_query_in_rp;
    bool has_zpass_done_sample_count_write_in_rp;
    bool disable_gmem;
@@ -496,6 +496,7 @@ struct tu_cmd_state
       enum tu_gmem_layout gmem_layout;
 
       const struct tu_image_view **attachments;
+      VkClearValue *clear_values;
 
       struct tu_lrz_state lrz;
    } suspended_pass;
@@ -508,10 +509,10 @@ struct tu_cmd_state
    bool stencil_back_write;
    bool pipeline_sysmem_single_prim_mode;
    bool pipeline_has_tess;
-   bool pipeline_has_gs;
    bool pipeline_disable_gmem;
    bool raster_order_attachment_access;
    bool raster_order_attachment_access_valid;
+   bool blit_cache_cleaned;
    VkImageAspectFlags pipeline_feedback_loops;
 
    bool pipeline_blend_lrz, pipeline_bandwidth;
@@ -572,6 +573,7 @@ struct tu_cmd_buffer
 
    struct tu_render_pass_attachment dynamic_rp_attachments[2 * (MAX_RTS + 1) + 1];
    struct tu_subpass_attachment dynamic_color_attachments[MAX_RTS];
+   struct tu_subpass_attachment dynamic_input_attachments[MAX_RTS + 1];
    struct tu_subpass_attachment dynamic_resolve_attachments[MAX_RTS + 1];
    const struct tu_image_view *dynamic_attachments[2 * (MAX_RTS + 1) + 1];
    VkClearValue dynamic_clear_values[2 * (MAX_RTS + 1)];
@@ -771,5 +773,7 @@ _tu_create_fdm_bin_patchpoint(struct tu_cmd_buffer *cmd,
 
 #define tu_create_fdm_bin_patchpoint(cmd, cs, size, apply, state) \
    _tu_create_fdm_bin_patchpoint(cmd, cs, size, apply, &state, sizeof(state))
+
+VkResult tu_init_bin_preamble(struct tu_device *device);
 
 #endif /* TU_CMD_BUFFER_H */

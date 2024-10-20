@@ -1,6 +1,7 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+use compiler::bindings::*;
 use nak_bindings::*;
 use nv_push_rs::Push as NvPush;
 use nvidia_headers::classes::cla0c0::mthd as cla0c0;
@@ -189,7 +190,7 @@ impl<'a> Runner {
             };
             let err = drmIoctl(
                 self.dev.as_ref().fd,
-                DRM_RS_IOCTL_NOUVEAU_EXEC,
+                DRM_RS_IOCTL_NOUVEAU_EXEC.into(),
                 &exec as *const _ as *mut std::os::raw::c_void,
             );
             if err != 0 {
@@ -225,7 +226,7 @@ impl<'a> Runner {
             };
             let err = drmIoctl(
                 self.dev.as_ref().fd,
-                DRM_RS_IOCTL_NOUVEAU_EXEC,
+                DRM_RS_IOCTL_NOUVEAU_EXEC.into(),
                 ptr::from_mut(&mut exec).cast(),
             );
             if err != 0 {

@@ -448,6 +448,10 @@ struct v3d_job {
          * clear.
          */
         uint32_t clear_draw;
+        /* Bitmask of PIPE_CLEAR_* of attached buffers that were invalidated
+         * by glInvalidateFramebuffer so we can avoid loading them.
+         */
+        uint32_t invalidated_load;
         /* Bitmask of PIPE_CLEAR_* of buffers that have been read by a draw
          * call without having been cleared first.
          */
@@ -745,10 +749,11 @@ void v3d_query_init(struct pipe_context *pctx);
 static inline int
 v3d_ioctl(int fd, unsigned long request, void *arg)
 {
-        if (USE_V3D_SIMULATOR)
-                return v3d_simulator_ioctl(fd, request, arg);
-        else
-                return drmIoctl(fd, request, arg);
+#if USE_V3D_SIMULATOR
+        return v3d_simulator_ioctl(fd, request, arg);
+#else
+        return drmIoctl(fd, request, arg);
+#endif
 }
 
 static inline bool

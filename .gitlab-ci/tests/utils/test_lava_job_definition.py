@@ -56,6 +56,7 @@ def job_submitter_factory(mode: Literal["UBOOT", "FASTBOOT"], shell_file):
         boot_method=boot_method,
         ci_project_dir="/ci/project/dir",
         device_type=device_type,
+        farm="test_farm",
         dtb_filename="my_dtb_filename",
         first_stage_init=shell_file,
         job_timeout_min=job_timeout_min,

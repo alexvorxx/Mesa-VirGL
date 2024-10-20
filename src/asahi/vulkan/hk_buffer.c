@@ -6,6 +6,8 @@
  */
 #include "hk_buffer.h"
 
+#include "agx_bo.h"
+#include "agx_device.h"
 #include "hk_device.h"
 #include "hk_device_memory.h"
 #include "hk_entrypoints.h"
@@ -30,7 +32,7 @@ hk_get_buffer_alignment(const struct hk_physical_device *pdev,
 
    if (create_flags & (VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
                        VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT))
-      alignment = MAX2(alignment, 4096);
+      alignment = MAX2(alignment, 16384);
 
    return alignment;
 }
@@ -95,34 +97,32 @@ hk_CreateBuffer(VkDevice device, const VkBufferCreateInfo *pCreateInfo,
         (VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
          VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT))) {
 
-      unreachable("todo");
-#if 0
-      const uint32_t alignment =
-         hk_get_buffer_alignment(hk_device_physical(dev),
-                                  buffer->vk.usage,
-                                  buffer->vk.create_flags);
-      assert(alignment >= 4096);
-      buffer->vma_size_B = align64(buffer->vk.size, alignment);
+      const uint32_t alignment = hk_get_buffer_alignment(
+         hk_device_physical(dev), buffer->vk.usage, buffer->vk.create_flags);
+      assert(alignment >= 16384);
+      uint64_t vma_size_B = align64(buffer->vk.size, alignment);
 
-      const bool sparse_residency =
-         buffer->vk.create_flags & VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
       const bool bda_capture_replay =
-         buffer->vk.create_flags & VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
+         buffer->vk.create_flags &
+         VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
 
-      uint64_t bda_replay_addr = 0;
-      if (bda_capture_replay)
-         bda_replay_addr = hk_get_bda_replay_addr(pCreateInfo);
+      enum agx_va_flags flags = 0;
+      uint64_t bda_fixed_addr = 0;
+      if (bda_capture_replay) {
+         bda_fixed_addr = hk_get_bda_replay_addr(pCreateInfo);
+         if (bda_fixed_addr != 0)
+            flags |= AGX_VA_FIXED;
+      }
 
-      buffer->addr = nouveau_ws_alloc_vma(dev->ws_dev, bda_replay_addr,
-                                          buffer->vma_size_B,
-                                          alignment, bda_capture_replay,
-                                          sparse_residency);
-#endif
-      if (buffer->addr == 0) {
+      buffer->va =
+         agx_va_alloc(&dev->dev, vma_size_B, alignment, flags, bda_fixed_addr);
+
+      if (!buffer->va) {
          vk_buffer_destroy(&dev->vk, pAllocator, &buffer->vk);
          return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
                           "Sparse VMA allocation failed");
       }
+      buffer->addr = buffer->va->addr;
    }
 
    *pBuffer = hk_buffer_to_handle(buffer);
@@ -140,19 +140,10 @@ hk_DestroyBuffer(VkDevice device, VkBuffer _buffer,
    if (!buffer)
       return;
 
-   if (buffer->vma_size_B > 0) {
-      unreachable("todo");
-#if 0
-      const bool sparse_residency =
-         buffer->vk.create_flags & VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
-      const bool bda_capture_replay =
-         buffer->vk.create_flags &
-         VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
-
-      agx_bo_unbind_vma(dev->ws_dev, buffer->addr, buffer->vma_size_B);
-      nouveau_ws_free_vma(dev->ws_dev, buffer->addr, buffer->vma_size_B,
-                          bda_capture_replay, sparse_residency);
-#endif
+   if (buffer->va) {
+      // TODO
+      // agx_bo_unbind_vma(dev->ws_dev, buffer->addr, buffer->vma_size_B);
+      agx_va_free(&dev->dev, buffer->va);
    }
 
    vk_buffer_destroy(&dev->vk, pAllocator, &buffer->vk);
@@ -244,19 +235,13 @@ hk_BindBufferMemory2(VkDevice device, uint32_t bindInfoCount,
       VK_FROM_HANDLE(hk_device_memory, mem, pBindInfos[i].memory);
       VK_FROM_HANDLE(hk_buffer, buffer, pBindInfos[i].buffer);
 
-      if (buffer->vma_size_B) {
-         unreachable("todo");
-#if 0
+      if (buffer->va) {
          VK_FROM_HANDLE(hk_device, dev, device);
-         agx_bo_bind_vma(dev->ws_dev,
-                                mem->bo,
-                                buffer->addr,
-                                buffer->vma_size_B,
-                                pBindInfos[i].memoryOffset,
-                                0 /* pte_kind */);
-#endif
+         dev->dev.ops.bo_bind(&dev->dev, mem->bo, buffer->addr,
+                              buffer->va->size_B, pBindInfos[i].memoryOffset,
+                              ASAHI_BIND_READ | ASAHI_BIND_WRITE, false);
       } else {
-         buffer->addr = mem->bo->ptr.gpu + pBindInfos[i].memoryOffset;
+         buffer->addr = mem->bo->va->addr + pBindInfos[i].memoryOffset;
       }
 
       const VkBindMemoryStatusKHR *status =

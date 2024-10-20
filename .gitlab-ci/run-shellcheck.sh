@@ -4,6 +4,7 @@
 CHECKPATH=".gitlab-ci/container"  # TODO: expand to cover whole .gitlab-ci/
 
 CHECKPATH=".gitlab-ci"
+export SCRIPTS_DIR="${CHECKPATH}"
 
 
 is_bash() {

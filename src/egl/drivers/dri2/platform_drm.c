@@ -314,7 +314,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
 
-   if (!dri2_dpy->flush) {
+   if (dri2_dpy->swrast_not_kms) {
       driSwapBuffers(dri2_surf->dri_drawable);
       return EGL_TRUE;
    }
@@ -330,7 +330,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
     * call get_back_bo (eg: through dri2_drm_image_get_buffers).
     */
    dri2_flush_drawable_for_swapbuffers(disp, draw);
-   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri_invalidate_drawable(dri2_surf->dri_drawable);
 
    /* Make sure we have a back buffer in case we're swapping without
     * ever rendering. */
@@ -636,7 +636,7 @@ dri2_initialize_drm(_EGLDisplay *disp)
 
    dri2_dpy->driver_name = strdup(dri2_dpy->gbm_dri->driver_name);
 
-   if (!dri2_load_driver_dri3(disp)) {
+   if (!dri2_load_driver(disp)) {
       err = "DRI3: failed to load driver";
       goto cleanup;
    }
@@ -656,11 +656,6 @@ dri2_initialize_drm(_EGLDisplay *disp)
    dri2_dpy->gbm_dri->base.v0.surface_lock_front_buffer = lock_front_buffer;
    dri2_dpy->gbm_dri->base.v0.surface_release_buffer = release_buffer;
    dri2_dpy->gbm_dri->base.v0.surface_has_free_buffers = has_free_buffers;
-
-   if (!dri2_setup_extensions(disp)) {
-      err = "DRI2: failed to find required DRI extensions";
-      goto cleanup;
-   }
 
    if (!dri2_setup_device(disp, dri2_dpy->gbm_dri->software)) {
       err = "DRI2: failed to setup EGLDevice";

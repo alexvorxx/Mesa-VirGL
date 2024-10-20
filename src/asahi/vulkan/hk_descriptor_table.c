@@ -23,14 +23,14 @@ hk_descriptor_table_grow_locked(struct hk_device *dev,
    assert(new_alloc > table->alloc && new_alloc <= table->max_alloc);
 
    const uint32_t new_bo_size = new_alloc * table->desc_size;
-   new_bo = agx_bo_create(&dev->dev, new_bo_size, 0, "Descriptor table");
+   new_bo = agx_bo_create(&dev->dev, new_bo_size, 0, 0, "Descriptor table");
 
    if (new_bo == NULL) {
       return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
                        "Failed to allocate the descriptor table");
    }
 
-   void *new_map = new_bo->ptr.cpu;
+   void *new_map = new_bo->map;
 
    assert(table->bo == NULL && "not yet implemented sparse binding");
    table->bo = new_bo;
@@ -88,7 +88,7 @@ void
 hk_descriptor_table_finish(struct hk_device *dev,
                            struct hk_descriptor_table *table)
 {
-   agx_bo_unreference(table->bo);
+   agx_bo_unreference(&dev->dev, table->bo);
    vk_free(&dev->vk.alloc, table->free_table);
    simple_mtx_destroy(&table->mutex);
 }

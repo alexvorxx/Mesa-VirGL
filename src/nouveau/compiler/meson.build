@@ -16,12 +16,6 @@ nak_rust_args = [
   '-Anon_snake_case',
 ]
 
-dep_syn = dependency('syn',
-  version : '>= 2.0.15',
-  fallback : ['syn', 'dep_syn'],
-  required : true,
-)
-
 dep_paste = dependency('paste',
   version : '>= 1.0.14',
   fallback : ['paste', 'dep_paste'],
@@ -39,7 +33,6 @@ libnak_c_files = files(
   'nak_nir_lower_tex.c',
   'nak_nir_lower_vtg_io.c',
   'nak_nir_split_64bit_conversions.c',
-  'nak_memstream.c',
 )
 
 _libacorn_rs = static_library(
@@ -79,35 +72,18 @@ _nak_bindings_rs = rust.bindgen(
     pre_args,
   ],
   args : [
+    compiler_rs_bindgen_blocklist,
     '--raw-line', '#![allow(non_camel_case_types)]',
     '--raw-line', '#![allow(non_snake_case)]',
     '--raw-line', '#![allow(non_upper_case_globals)]',
+    '--raw-line', 'use compiler::bindings::*;',
     '--allowlist-type', 'drm.*',
-    '--allowlist-type', 'exec_list',
-    '--allowlist-type', 'exec_node',
-    '--allowlist-type', 'float_controls',
-    '--allowlist-type', 'gl_access_qualifier',
-    '--allowlist-type', 'gl_frag_result',
-    '--allowlist-type', 'gl_interp_mode',
-    '--allowlist-type', 'gl_shader_stage',
-    '--allowlist-type', 'gl_system_value',
-    '--allowlist-type', 'gl_tess_spacing',
-    '--allowlist-type', 'gl_varying_slot',
-    '--allowlist-type', 'gl_vert_attrib',
     '--allowlist-type', 'nak_.*',
-    '--allowlist-type', 'nir_.*',
     '--allowlist-type', 'nouveau_ws_.*',
-    '--allowlist-type', 'mesa_scope',
-    '--allowlist-type', 'mesa_prim',
-    '--allowlist-type', 'tess_primitive_mode',
     '--allowlist-var', 'DRM_.*',
-    '--allowlist-var', 'nir_.*_infos',
     '--allowlist-var', 'NVIDIA_VENDOR_ID',
     '--allowlist-function', 'drm.*',
-    '--allowlist-function', 'glsl_.*',
-    '--allowlist-function', '_mesa_shader_stage_to_string',
     '--allowlist-function', 'nak_.*',
-    '--allowlist-function', 'nir_.*',
     '--allowlist-function', 'nouveau_ws_.*',
     '--no-prepend-enum-name',
   ],
@@ -122,13 +98,16 @@ _libnak_bindings_rs = static_library(
   'nak_bindings',
   _nak_bindings_rs,
   gnu_symbol_visibility : 'hidden',
+  dependencies : [
+    idep_compiler_rs,
+  ],
   rust_abi : 'rust',
 )
 
 _libnak_ir_proc_rs = rust.proc_macro(
   'nak_ir_proc',
   files('nak/ir_proc.rs'),
-  dependencies : [dep_syn],
+  dependencies : [idep_compiler_proc_rs],
 )
 
 _libnak_rs = static_library(
@@ -143,6 +122,7 @@ _libnak_rs = static_library(
   ],
   dependencies : [
     dep_paste,
+    idep_compiler_rs,
     idep_nvidia_headers_rs,
   ],
   link_with : [
@@ -171,6 +151,9 @@ if with_tests and get_option('b_sanitize') == 'none'
       idep_mesautil.partial_dependency(link_args : true, links : true),
       idep_nv_push_rs,
     ],
+    # This is needed to ensure we link against glibc
+    # See also https://gitlab.freedesktop.org/mesa/mesa/-/issues/11632
+    rust_args: ['-C', 'default-linker-libraries'],
     link_with: [
       _libacorn_rs,
     ],

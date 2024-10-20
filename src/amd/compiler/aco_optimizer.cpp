@@ -608,6 +608,14 @@ alu_can_accept_constant(const aco_ptr<Instruction>& instr, unsigned operand)
       return false;
 
    switch (instr->opcode) {
+   case aco_opcode::v_s_exp_f16:
+   case aco_opcode::v_s_log_f16:
+   case aco_opcode::v_s_rcp_f16:
+   case aco_opcode::v_s_rsq_f16:
+   case aco_opcode::v_s_sqrt_f16:
+      /* These can't use inline constants on GFX12 but can use literals. We don't bother since they
+       * should be constant folded anyway. */
+      return false;
    case aco_opcode::s_fmac_f16:
    case aco_opcode::s_fmac_f32:
    case aco_opcode::v_mac_f32:
@@ -1855,11 +1863,13 @@ label_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
                   ctx.info[instr->definitions[0].tempId()].set_neg(other);
                else if (!abs && !neg)
                   ctx.info[instr->definitions[0].tempId()].set_fcanonicalize(other);
-            } else if (uses_mods || ((fp16 ? ctx.fp_mode.preserve_signed_zero_inf_nan16_64
-                                           : ctx.fp_mode.preserve_signed_zero_inf_nan32) &&
+            } else if (uses_mods || (instr->definitions[0].isSZPreserve() &&
                                      instr->opcode != aco_opcode::v_mul_legacy_f32)) {
                continue; /* omod uses a legacy multiplication. */
-            } else if (instr->operands[!i].constantValue() == 0u) { /* 0.0 */
+            } else if (instr->operands[!i].constantValue() == 0u &&
+                       ((!instr->definitions[0].isNaNPreserve() &&
+                         !instr->definitions[0].isInfPreserve()) ||
+                        instr->opcode == aco_opcode::v_mul_legacy_f32)) { /* 0.0 */
                ctx.info[instr->definitions[0].tempId()].set_constant(ctx.program->gfx_level, 0u);
             } else if ((fp16 ? ctx.fp_mode.denorm16_64 : ctx.fp_mode.denorm32) != fp_denorm_flush) {
                /* omod has no effect if denormals are enabled. */
@@ -2990,6 +3000,21 @@ apply_sgprs(opt_ctx& ctx, aco_ptr<Instruction>& instr)
    }
 }
 
+bool
+interp_can_become_fma(opt_ctx& ctx, aco_ptr<Instruction>& instr)
+{
+   if (instr->opcode != aco_opcode::v_interp_p2_f32_inreg)
+      return false;
+
+   instr->opcode = aco_opcode::v_fma_f32;
+   instr->format = Format::VOP3;
+   bool dpp_allowed = can_use_DPP(ctx.program->gfx_level, instr, false);
+   instr->opcode = aco_opcode::v_interp_p2_f32_inreg;
+   instr->format = Format::VINTERP_INREG;
+
+   return dpp_allowed;
+}
+
 void
 interp_p2_f32_inreg_to_fma_dpp(aco_ptr<Instruction>& instr)
 {
@@ -3020,9 +3045,8 @@ apply_omod_clamp(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       return false;
 
    /* SDWA omod is GFX9+. */
-   bool can_use_omod =
-      (can_vop3 || ctx.program->gfx_level >= GFX9) && !instr->isVOP3P() &&
-      (!instr->isVINTERP_INREG() || instr->opcode == aco_opcode::v_interp_p2_f32_inreg);
+   bool can_use_omod = (can_vop3 || ctx.program->gfx_level >= GFX9) && !instr->isVOP3P() &&
+                       (!instr->isVINTERP_INREG() || interp_can_become_fma(ctx, instr));
 
    ssa_info& def_info = ctx.info[instr->definitions[0].tempId()];
 
@@ -3581,7 +3605,7 @@ combine_output_conversion(opt_ctx& ctx, aco_ptr<Instruction>& instr)
    if (conv->usesModifiers())
       return false;
 
-   if (instr->opcode == aco_opcode::v_interp_p2_f32_inreg)
+   if (interp_can_become_fma(ctx, instr))
       interp_p2_f32_inreg_to_fma_dpp(instr);
 
    if (!can_use_mad_mix(ctx, instr))
@@ -3783,7 +3807,7 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       if (mul_instr->isSDWA() || mul_instr->isDPP())
          return;
       if (mul_instr->opcode == aco_opcode::v_mul_legacy_f32 &&
-          ctx.fp_mode.preserve_signed_zero_inf_nan32)
+          mul_instr->definitions[0].isSZPreserve())
          return;
       if (mul_instr->definitions[0].bytes() != instr->definitions[0].bytes())
          return;
@@ -4012,9 +4036,10 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       }
    }
    /* v_mul_f32(v_cndmask_b32(0, 1.0, cond), a) -> v_cndmask_b32(0, a, cond) */
-   else if (((instr->opcode == aco_opcode::v_mul_f32 &&
-              !ctx.fp_mode.preserve_signed_zero_inf_nan32) ||
-             instr->opcode == aco_opcode::v_mul_legacy_f32) &&
+   else if (((instr->opcode == aco_opcode::v_mul_f32 && !instr->definitions[0].isNaNPreserve() &&
+              !instr->definitions[0].isInfPreserve()) ||
+             (instr->opcode == aco_opcode::v_mul_legacy_f32 &&
+              !instr->definitions[0].isSZPreserve())) &&
             !instr->usesModifiers() && !ctx.fp_mode.must_flush_denorms32) {
       for (unsigned i = 0; i < 2; i++) {
          if (instr->operands[i].isTemp() && ctx.info[instr->operands[i].tempId()].is_b2f() &&

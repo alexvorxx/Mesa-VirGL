@@ -98,6 +98,7 @@ struct kopper_loader_info {
    int has_alpha;
    int initial_swap_interval;
    bool present_opaque;
+   uint32_t compression;
 };
 
 #define __DRI_KOPPER_LOADER "DRI_KopperLoader"

@@ -56,20 +56,44 @@ static bool
 can_omit_write(const fs_inst *inst)
 {
    switch (inst->opcode) {
-   case SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL:
-   case SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL:
-   case SHADER_OPCODE_TYPED_ATOMIC_LOGICAL:
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
       return true;
    default:
       /* We can eliminate the destination write for ordinary instructions,
        * but not most SENDs.
        */
-      if (inst->opcode < 128 && inst->mlen == 0)
+      if (inst->opcode < NUM_BRW_OPCODES && inst->mlen == 0)
          return true;
 
       /* It might not be safe for other virtual opcodes. */
       return false;
    }
+}
+
+static bool
+can_eliminate_conditional_mod(const intel_device_info *devinfo,
+                              const fs_inst *inst, BITSET_WORD *flag_live)
+{
+   /* CMP, CMPN, and CSEL must have a conditional modifier because the
+    * modifier determines what the instruction does. SEL with a conditional
+    * modifier has a special meaning (i.e., makes the instruction behave as
+    * MIN or MAX), so those cannot be eliminated either.
+    */
+   if (inst->conditional_mod == BRW_CONDITIONAL_NONE ||
+       inst->opcode == BRW_OPCODE_CMP ||
+       inst->opcode == BRW_OPCODE_CMPN ||
+       inst->opcode == BRW_OPCODE_SEL ||
+       inst->opcode == BRW_OPCODE_CSEL) {
+      return false;
+   }
+
+   /* The conditional modifier can be eliminated if none of the flags written
+    * are read.
+    */
+   const BITSET_WORD flags_written = inst->flags_written(devinfo);
+
+   assert(flags_written != 0);
+   return (flag_live[0] & flags_written) == 0;
 }
 
 bool
@@ -105,6 +129,9 @@ brw_fs_opt_dead_code_eliminate(fs_visitor &s)
                progress = true;
             }
          }
+
+         if (can_eliminate_conditional_mod(devinfo, inst, flag_live))
+            inst->conditional_mod = BRW_CONDITIONAL_NONE;
 
          if (inst->dst.is_null() && can_eliminate(devinfo, inst, flag_live) &&
              !(inst->opcode == BRW_OPCODE_NOP &&

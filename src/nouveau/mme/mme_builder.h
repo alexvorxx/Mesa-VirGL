@@ -28,7 +28,9 @@ enum mme_alu_op {
    MME_ALU_OP_SLL,
    MME_ALU_OP_SRL,
    MME_ALU_OP_SRA,
+   MME_ALU_OP_NOT,
    MME_ALU_OP_AND,
+   MME_ALU_OP_AND_NOT,
    MME_ALU_OP_NAND,
    MME_ALU_OP_OR,
    MME_ALU_OP_XOR,
@@ -248,7 +250,9 @@ MME_DEF_ALU1(clz,    CLZ);
 MME_DEF_ALU2(sll,    SLL);
 MME_DEF_ALU2(srl,    SRL);
 MME_DEF_ALU2(sra,    SRA);
+MME_DEF_ALU1(not,    NOT);
 MME_DEF_ALU2(and,    AND);
+MME_DEF_ALU2(and_not,AND_NOT);
 MME_DEF_ALU2(nand,   NAND);
 MME_DEF_ALU2(or,     OR);
 MME_DEF_ALU2(xor,    XOR);

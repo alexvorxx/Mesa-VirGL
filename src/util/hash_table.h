@@ -130,6 +130,13 @@ bool _mesa_key_pointer_equal(const void *a, const void *b);
 struct hash_table *
 _mesa_pointer_hash_table_create(void *mem_ctx);
 
+static inline struct hash_table *
+_mesa_string_hash_table_create(void *mem_ctx)
+{
+   return _mesa_hash_table_create(mem_ctx, _mesa_hash_string,
+                                  _mesa_key_string_equal);
+}
+
 bool
 _mesa_hash_table_reserve(struct hash_table *ht, unsigned size);
 /**

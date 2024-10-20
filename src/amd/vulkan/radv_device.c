@@ -68,8 +68,6 @@ typedef void *drmDevicePtr;
 #include "vk_sync.h"
 #include "vk_sync_dummy.h"
 
-#include "aco_interface.h"
-
 #if AMD_LLVM_AVAILABLE
 #include "ac_llvm_util.h"
 #endif
@@ -575,7 +573,8 @@ radv_device_init_memory_cache(struct radv_device *device)
 static void
 radv_device_finish_memory_cache(struct radv_device *device)
 {
-   vk_pipeline_cache_destroy(device->mem_cache, NULL);
+   if (device->mem_cache)
+      vk_pipeline_cache_destroy(device->mem_cache, NULL);
 }
 
 static VkResult
@@ -848,11 +847,9 @@ capture_trace(VkQueue _queue)
 static void
 radv_device_init_cache_key(struct radv_device *device)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_device_cache_key *key = &device->cache_key;
 
    key->disable_trunc_coord = device->disable_trunc_coord;
-   key->image_2d_view_of_3d = device->vk.enabled_features.image2DViewOf3D && pdev->info.gfx_level == GFX9;
    key->mesh_shader_queries = device->vk.enabled_features.meshShaderQueries;
    key->primitives_generated_query = radv_uses_primitives_generated_query(device);
 
@@ -865,7 +862,6 @@ radv_device_init_cache_key(struct radv_device *device)
     * enabled, regardless of what features are actually enabled on the logical device.
     */
    if (device->vk.enabled_features.shaderObject) {
-      key->image_2d_view_of_3d = pdev->info.gfx_level == GFX9;
       key->primitives_generated_query = true;
    }
 
@@ -875,7 +871,6 @@ radv_device_init_cache_key(struct radv_device *device)
 static void
 radv_create_gfx_preamble(struct radv_device *device)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radeon_cmdbuf *cs = device->ws->cs_create(device->ws, AMD_IP_GFX, false);
    if (!cs)
       return;
@@ -884,12 +879,7 @@ radv_create_gfx_preamble(struct radv_device *device)
 
    radv_emit_graphics(device, cs);
 
-   while (cs->cdw & 7) {
-      if (pdev->info.gfx_ib_pad_with_type2)
-         radeon_emit(cs, PKT2_NOP_PAD);
-      else
-         radeon_emit(cs, PKT3_NOP_PAD);
-   }
+   device->ws->cs_pad(cs, 0);
 
    VkResult result = radv_bo_create(
       device, NULL, cs->cdw * 4, 4096, device->ws->cs_domain(device->ws),
@@ -1054,22 +1044,6 @@ radv_device_init_msaa(struct radv_device *device)
       radv_get_sample_position(device, 8, i, device->sample_locations_8x[i]);
 }
 
-static bool
-radv_is_cache_disabled(struct radv_device *device)
-{
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-   const struct radv_instance *instance = radv_physical_device_instance(pdev);
-
-   /* The buffer address used for debug printf is hardcoded. */
-   if (device->printf.buffer_addr)
-      return true;
-
-   /* Pipeline caches can be disabled with RADV_DEBUG=nocache, with MESA_GLSL_CACHE_DISABLE=1 and
-    * when ACO_DEBUG is used. MESA_GLSL_CACHE_DISABLE is done elsewhere.
-    */
-   return (instance->debug_flags & RADV_DEBUG_NO_CACHE) || (pdev->use_llvm ? 0 : aco_get_codegen_flags());
-}
-
 VKAPI_ATTR VkResult VKAPI_CALL
 radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCreateInfo,
                   const VkAllocationCallbacks *pAllocator, VkDevice *pDevice)
@@ -1133,10 +1107,6 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       device->vk.enabled_extensions.KHR_ray_tracing_pipeline ||
       device->vk.enabled_extensions.KHR_acceleration_structure ||
       device->vk.enabled_extensions.VALVE_descriptor_set_host_mapping;
-
-   device->buffer_robustness = device->vk.enabled_features.robustBufferAccess2  ? RADV_BUFFER_ROBUSTNESS_2
-                               : device->vk.enabled_features.robustBufferAccess ? RADV_BUFFER_ROBUSTNESS_1
-                                                                                : RADV_BUFFER_ROBUSTNESS_DISABLED;
 
    radv_init_shader_arenas(device);
 
@@ -1269,6 +1239,10 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
    /* Initialize the per-device cache key before compiling meta shaders. */
    radv_device_init_cache_key(device);
 
+   result = radv_device_init_tools(device);
+   if (result != VK_SUCCESS)
+      goto fail;
+
    result = radv_device_init_meta(device);
    if (result != VK_SUCCESS)
       goto fail;
@@ -1303,9 +1277,11 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
    if (!(instance->debug_flags & RADV_DEBUG_NO_IBS))
       radv_create_gfx_preamble(device);
 
-   result = radv_device_init_memory_cache(device);
-   if (result != VK_SUCCESS)
-      goto fail_meta;
+   if (!device->vk.disable_internal_cache) {
+      result = radv_device_init_memory_cache(device);
+      if (result != VK_SUCCESS)
+         goto fail_meta;
+   }
 
    device->force_aniso = MIN2(16, (int)debug_get_num_option("RADV_TEX_ANISO", -1));
    if (device->force_aniso >= 0) {
@@ -1322,16 +1298,10 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       device->capture_replay_arena_vas = _mesa_hash_table_u64_create(NULL);
    }
 
-   result = radv_device_init_tools(device);
-   if (result != VK_SUCCESS)
-      goto fail_cache;
-
    if (pdev->info.gfx_level == GFX11 && pdev->info.has_dedicated_vram && instance->drirc.force_pstate_peak_gfx11_dgpu) {
       if (!radv_device_acquire_performance_counters(device))
          fprintf(stderr, "radv: failed to set pstate to profile_peak.\n");
    }
-
-   device->cache_disabled = radv_is_cache_disabled(device);
 
    *pDevice = radv_device_to_handle(device);
    return VK_SUCCESS;
@@ -1446,23 +1416,6 @@ radv_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    vk_free(&device->vk.alloc, device);
 }
 
-bool
-radv_get_memory_fd(struct radv_device *device, struct radv_device_memory *memory, int *pFD)
-{
-   /* Set BO metadata for dedicated image allocations.  We don't need it for import when the image
-    * tiling is VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT, but we set it anyway for foreign consumers.
-    */
-   if (memory->image) {
-      struct radeon_bo_metadata metadata;
-
-      assert(memory->image->bindings[0].offset == 0);
-      radv_init_metadata(device, memory->image, &metadata);
-      device->ws->buffer_set_metadata(device->ws, memory->bo, &metadata);
-   }
-
-   return device->ws->buffer_get_fd(device->ws, memory->bo, pFD);
-}
-
 VKAPI_ATTR void VKAPI_CALL
 radv_GetImageMemoryRequirements2(VkDevice _device, const VkImageMemoryRequirementsInfo2 *pInfo,
                                  VkMemoryRequirements2 *pMemoryRequirements)
@@ -1570,7 +1523,7 @@ radv_initialise_color_surface(struct radv_device *device, struct radv_color_buff
 
    const struct ac_cb_state cb_state = {
       .surf = surf,
-      .format = vk_format_to_pipe_format(iview->vk.format),
+      .format = radv_format_to_pipe_format(iview->vk.format),
       .width = vk_format_get_plane_width(iview->image->vk.format, iview->plane_id, iview->extent.width),
       .height = vk_format_get_plane_height(iview->image->vk.format, iview->plane_id, iview->extent.height),
       .first_layer = iview->vk.base_array_layer,
@@ -1652,7 +1605,7 @@ radv_initialise_ds_surface(const struct radv_device *device, struct radv_ds_buff
    const struct ac_ds_state ds_state = {
       .surf = &iview->image->planes[0].surface,
       .va = radv_image_get_va(iview->image, 0),
-      .format = vk_format_to_pipe_format(iview->image->vk.format),
+      .format = radv_format_to_pipe_format(iview->image->vk.format),
       .width = iview->image->vk.extent.width,
       .height = iview->image->vk.extent.height,
       .level = level,
@@ -1672,7 +1625,7 @@ radv_initialise_ds_surface(const struct radv_device *device, struct radv_ds_buff
 
    const struct ac_mutable_ds_state mutable_ds_state = {
       .ds = &ds->ac,
-      .format = vk_format_to_pipe_format(iview->image->vk.format),
+      .format = radv_format_to_pipe_format(iview->image->vk.format),
       .tc_compat_htile_enabled = radv_htile_enabled(iview->image, level) && radv_image_is_tc_compat_htile(iview->image),
       .zrange_precision = true,
       .no_d16_compression = true,
@@ -1722,7 +1675,18 @@ radv_GetMemoryFdKHR(VkDevice _device, const VkMemoryGetFdInfoKHR *pGetFdInfo, in
    assert(pGetFdInfo->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
           pGetFdInfo->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
 
-   bool ret = radv_get_memory_fd(device, memory, pFD);
+   /* Set BO metadata for dedicated image allocations.  We don't need it for import when the image
+    * tiling is VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT, but we set it anyway for foreign consumers.
+    */
+   if (memory->image) {
+      struct radeon_bo_metadata metadata;
+
+      assert(memory->image->bindings[0].offset == 0);
+      radv_init_metadata(device, memory->image, &metadata);
+      device->ws->buffer_set_metadata(device->ws, memory->bo, &metadata);
+   }
+
+   bool ret = device->ws->buffer_get_fd(device->ws, memory->bo, pFD);
    if (ret == false)
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
    return VK_SUCCESS;

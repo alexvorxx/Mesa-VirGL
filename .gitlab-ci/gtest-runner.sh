@@ -1,13 +1,3 @@
-#!/bin/sh
-
-set -ex
-
-INSTALL=`pwd`/install
-
-# Set up the driver environment.
-export LD_LIBRARY_PATH=`pwd`/install/lib/
-export LIBVA_DRIVERS_PATH=`pwd`/install/lib/dri/
-
 #!/usr/bin/env bash
 # shellcheck disable=SC2086 # we want word splitting
 
@@ -18,11 +8,7 @@ INSTALL=$PWD/install
 # Set up the driver environment.
 export LD_LIBRARY_PATH=$INSTALL/lib/
 
-RESULTS="$PWD/${GTEST_RESULTS_DIR:-results}"
-mkdir -p "$RESULTS"
-
 export LIBVA_DRIVERS_PATH=$INSTALL/lib/dri/
-
 # libva spams driver open info by default, and that happens per testcase.
 export LIBVA_MESSAGING_LEVEL=1
 
@@ -31,11 +17,7 @@ if [ -e "$INSTALL/$GPU_VERSION-fails.txt" ]; then
 fi
 
 # Default to an empty known flakes file if it doesn't exist.
-
-touch $INSTALL/$GPU_VERSION-flakes.txt
-
 touch "$INSTALL/$GPU_VERSION-flakes.txt"
-
 
 if [ -n "$GALLIUM_DRIVER" ] && [ -e "$INSTALL/$GALLIUM_DRIVER-skips.txt" ]; then
     GTEST_SKIPS="$GTEST_SKIPS --skips $INSTALL/$GALLIUM_DRIVER-skips.txt"
@@ -54,11 +36,7 @@ set +e
 gtest-runner \
     run \
     --gtest $GTEST \
-
-    --output ${GTEST_RESULTS_DIR:-results} \
-
-    --output ${RESULTS} \
-
+    --output ${RESULTS_DIR} \
     --jobs ${FDO_CI_CONCURRENT:-4} \
     $GTEST_SKIPS \
     --flakes $INSTALL/$GPU_VERSION-flakes.txt \
@@ -71,8 +49,8 @@ GTEST_EXITCODE=$?
 
 deqp-runner junit \
    --testsuite gtest \
-   --results $RESULTS/failures.csv \
-   --output $RESULTS/junit.xml \
+   --results $RESULTS_DIR/failures.csv \
+   --output $RESULTS_DIR/junit.xml \
    --limit 50 \
    --template "See $ARTIFACTS_BASE_URL/results/{{testcase}}.xml"
 
@@ -81,7 +59,7 @@ if [ -n "$FLAKES_CHANNEL" ]; then
   python3 $INSTALL/report-flakes.py \
          --host irc.oftc.net \
          --port 6667 \
-         --results $RESULTS/results.csv \
+         --results $RESULTS_DIR/results.csv \
          --known-flakes $INSTALL/$GPU_VERSION-flakes.txt \
          --channel "$FLAKES_CHANNEL" \
          --runner "$CI_RUNNER_DESCRIPTION" \
@@ -92,3 +70,4 @@ if [ -n "$FLAKES_CHANNEL" ]; then
 fi
 
 exit $GTEST_EXITCODE
+

@@ -1548,7 +1548,7 @@ static int gfx6_compute_surface(ADDR_HANDLE addrlib, const struct radeon_info *i
     */
    if (!(surf->flags & RADEON_SURF_Z_OR_SBUFFER) && surf->meta_size && config->info.levels > 1) {
       /* The smallest miplevels that are never compressed by DCC
-       * still read the DCC buffer via TC if the base level uses DCC,
+       * still read the DCC buffer from memory if the base level uses DCC,
        * and for some reason the DCC buffer needs to be larger if
        * the miptree uses non-zero tile_swizzle. Otherwise there are
        * VM faults.
@@ -2192,7 +2192,7 @@ static int gfx9_compute_miptree(struct ac_addrlib *addrlib, const struct radeon_
           *
           * Alternative solutions that also work but are worse:
           * - Disable DCC entirely.
-          * - Flush TC L2 after rendering.
+          * - Flush the L2 cache after rendering.
           */
          for (unsigned i = 0; i < in->numMipLevels; i++) {
             surf->u.gfx9.meta_levels[i].offset = meta_mip_info[i].offset;
@@ -2393,6 +2393,7 @@ static int gfx9_compute_surface(struct ac_addrlib *addrlib, const struct radeon_
                                   (surf->flags & RADEON_SURF_TC_COMPATIBLE_HTILE);
    AddrSurfInfoIn.flags.opt4space = 1;
    AddrSurfInfoIn.flags.prt = (surf->flags & RADEON_SURF_PRT) != 0;
+   AddrSurfInfoIn.flags.view3dAs2dArray = (surf->flags & RADEON_SURF_VIEW_3D_AS_2D_ARRAY) != 0;
 
    AddrSurfInfoIn.numMipLevels = config->info.levels;
    AddrSurfInfoIn.numSamples = MAX2(1, config->info.samples);
@@ -2754,7 +2755,7 @@ static unsigned gfx12_select_swizzle_mode(struct ac_addrlib *addrlib,
 
    get_in.flags = in->flags;
    get_in.resourceType = in->resourceType;
-   get_in.bpp = in->bpp;
+   get_in.bpp = in->bpp ? in->bpp : (surf->bpe * 8);
    get_in.width = in->width;
    get_in.height = in->height;
    get_in.numSlices = in->numSlices;
@@ -3015,7 +3016,7 @@ static bool gfx12_compute_hiz_his_info(struct ac_addrlib *addrlib, const struct 
 {
    assert(surf_in->flags.depth != surf_in->flags.stencil);
 
-   if (surf->flags & RADEON_SURF_NO_HTILE)
+   if (surf->flags & RADEON_SURF_NO_HTILE || (info->gfx_level == GFX12 && info->chip_rev == 0))
       return true;
 
    ADDR3_COMPUTE_SURFACE_INFO_OUTPUT out = {0};
@@ -3065,6 +3066,23 @@ static bool gfx12_compute_miptree(struct ac_addrlib *addrlib, const struct radeo
    ret = Addr3ComputeSurfaceInfo(addrlib->handle, in, &out);
    if (ret != ADDR_OK)
       return false;
+
+   /* TODO: remove this block once addrlib stops giving us 64K pitch for small images, breaking
+    * modifiers and X.Org.
+    */
+   if (in->swizzleMode >= ADDR3_256B_2D && in->swizzleMode <= ADDR3_256KB_2D &&
+       in->numMipLevels == 1) {
+      static unsigned block_bits[ADDR3_MAX_TYPE] = {
+         [ADDR3_256B_2D] = 8,
+         [ADDR3_4KB_2D] = 12,
+         [ADDR3_64KB_2D] = 16,
+         [ADDR3_256KB_2D] = 18,
+      };
+      unsigned align_bits = block_bits[in->swizzleMode] - util_logbase2(surf->bpe);
+      unsigned w_align = 1 << (align_bits / 2 + align_bits % 2);
+
+      out.pitch = align(in->width, w_align);
+   }
 
    if (in->flags.stencil) {
       surf->u.gfx9.zs.stencil_swizzle_mode = in->swizzleMode;
@@ -3153,6 +3171,7 @@ static bool gfx12_compute_miptree(struct ac_addrlib *addrlib, const struct radeo
          return false;
 
       assert(xout.pipeBankXor <= u_bit_consecutive(0, sizeof(surf->tile_swizzle) * 8 + 2));
+      surf->tile_swizzle = xout.pipeBankXor;
    }
 
    return true;
@@ -3247,9 +3266,8 @@ static bool gfx12_compute_surface(struct ac_addrlib *addrlib, const struct radeo
                                     (surf->flags & RADEON_SURF_Z_OR_SBUFFER ||
                                      config->info.samples > 1 ||
                                      ((supports_display_dcc || !(surf->flags & RADEON_SURF_SCANOUT)) &&
-                                      /* These two are not strictly necessary. */
-                                      surf->u.gfx9.swizzle_mode != ADDR3_LINEAR &&
-                                      surf->surf_size >= 4096)));
+                                      /* This one is not strictly necessary. */
+                                      surf->u.gfx9.swizzle_mode != ADDR3_LINEAR)));
 
    surf->has_stencil = !!(surf->flags & RADEON_SURF_SBUFFER);
    surf->is_linear = surf->u.gfx9.swizzle_mode == ADDR3_LINEAR;

@@ -312,6 +312,18 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
 #endif
    }
 
+   /* Disable the POOL_ALLOC mechanism in HW. We found that this state can get
+    * corrupted (likely due to leaking from another context), the default
+    * value should be disabled. It doesn't cost anything to set it once at
+    * device initialization.
+    */
+#if GFX_VER >= 11 && GFX_VERx10 < 125
+   anv_batch_emit(batch, GENX(3DSTATE_BINDING_TABLE_POOL_ALLOC), btpa) {
+      btpa.MOCS = mocs;
+      btpa.BindingTablePoolEnable = false;
+   }
+#endif
+
    struct mi_builder b;
    mi_builder_init(&b, device->info, batch);
 
@@ -844,6 +856,7 @@ genX(init_physical_device_state)(ASSERTED struct anv_physical_device *pdevice)
 #endif
 
    pdevice->cmd_emit_timestamp = genX(cmd_emit_timestamp);
+   pdevice->cmd_capture_data = genX(cmd_capture_data);
 
    pdevice->gpgpu_pipeline_value = GPGPU;
 

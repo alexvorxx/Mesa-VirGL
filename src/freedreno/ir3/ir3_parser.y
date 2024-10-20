@@ -217,7 +217,7 @@ static void fixup_cat5_s2en(void)
 
 static void add_const(unsigned reg, unsigned c0, unsigned c1, unsigned c2, unsigned c3)
 {
-	struct ir3_const_state *const_state = ir3_const_state(variant);
+	struct ir3_const_state *const_state = ir3_const_state_mut(variant);
 	assert((reg & 0x7) == 0);
 	int idx = reg >> (1 + 2); /* low bit is half vs full, next two bits are swiz */
 	if (idx * 4 + 4 > const_state->immediates_size) {
@@ -645,6 +645,7 @@ static void print_token(FILE *file, int type, YYSTYPE value)
 %token <tok> T_OP_GETFIBERID
 %token <tok> T_OP_STC
 %token <tok> T_OP_STSC
+%token <tok> T_OP_SHFL
 
 /* category 7: */
 %token <tok> T_OP_BAR
@@ -715,6 +716,12 @@ static void print_token(FILE *file, int type, YYSTYPE value)
 %token <tok> T_MOD_TEX
 %token <tok> T_MOD_MEM
 %token <tok> T_MOD_RT
+
+%token <tok> T_MOD_XOR
+%token <tok> T_MOD_UP
+%token <tok> T_MOD_DOWN
+%token <tok> T_MOD_RUP
+%token <tok> T_MOD_RDOWN
 
 %type <num> integer offset uoffset
 %type <num> flut_immed
@@ -1332,6 +1339,20 @@ cat6_stc:
               T_OP_STC  { new_instr(OPC_STC); }  cat6_type 'c' '[' const_dst ']' ',' src_reg ',' cat6_immed
 |             T_OP_STSC { new_instr(OPC_STSC); } cat6_type 'c' '[' const_dst ']' ',' immediate ',' cat6_immed
 
+cat6_shfl_mode: T_MOD_XOR   { instr->cat6.shfl_mode = SHFL_XOR;   }
+|               T_MOD_UP    { instr->cat6.shfl_mode = SHFL_UP;    }
+|               T_MOD_DOWN  { instr->cat6.shfl_mode = SHFL_DOWN;  }
+|               T_MOD_RUP   { instr->cat6.shfl_mode = SHFL_RUP;   }
+|               T_MOD_RDOWN { instr->cat6.shfl_mode = SHFL_RDOWN; }
+                /* This is added to make it easy to experiment with the
+                 * unknown modes.
+                 */
+|               integer     { instr->cat6.shfl_mode = $1; }
+
+cat6_shfl:
+         T_OP_SHFL { new_instr(OPC_SHFL); } '.' cat6_shfl_mode cat6_type dst ',' src ',' cat6_reg_or_immed
+
+
 cat6_todo:         T_OP_G2L                 { new_instr(OPC_G2L); }
 |                  T_OP_L2G                 { new_instr(OPC_L2G); }
 |                  T_OP_RESFMT              { new_instr(OPC_RESFMT); }
@@ -1347,6 +1368,7 @@ cat6_instr:        cat6_load
 |                  cat6_bindless_ldc
 |                  cat6_bindless_ibo
 |                  cat6_stc
+|                  cat6_shfl
 |                  cat6_todo
 
 cat7_scope:        '.' 'w'  { instr->cat7.w = true; }
@@ -1540,6 +1562,9 @@ relative:          relative_gpr_src
 /* cat1 immediates differ slighly in the floating point case from the cat2
  * case which can only encode certain predefined values (ie. and index into
  * the FLUT table)
+ *
+ * We have to special cases a few FLUT values which are ambiguous from the
+ * lexer PoV.
  */
 immediate_cat1:    integer             { new_src(0, IR3_REG_IMMED)->iim_val = type_size(instr->cat1.src_type) < 32 ? $1 & 0xffff : $1; }
 |                  '(' integer ')'     { new_src(0, IR3_REG_IMMED)->fim_val = $2; }
@@ -1548,6 +1573,11 @@ immediate_cat1:    integer             { new_src(0, IR3_REG_IMMED)->iim_val = ty
 |                  'h' '(' float ')'   { new_src(0, IR3_REG_IMMED | IR3_REG_HALF)->uim_val = _mesa_float_to_half($3); }
 |                  '(' T_NAN ')'       { new_src(0, IR3_REG_IMMED)->fim_val = NAN; }
 |                  '(' T_INF ')'       { new_src(0, IR3_REG_IMMED)->fim_val = INFINITY; }
+|                  T_FLUT_0_0          { new_src(0, IR3_REG_IMMED)->fim_val = 0.0; }
+|                  T_FLUT_0_5          { new_src(0, IR3_REG_IMMED)->fim_val = 0.5; }
+|                  T_FLUT_1_0          { new_src(0, IR3_REG_IMMED)->fim_val = 1.0; }
+|                  T_FLUT_2_0          { new_src(0, IR3_REG_IMMED)->fim_val = 2.0; }
+|                  T_FLUT_4_0          { new_src(0, IR3_REG_IMMED)->fim_val = 4.0; }
 
 immediate:         integer             { new_src(0, IR3_REG_IMMED)->iim_val = $1; }
 |                  '(' integer ')'     { new_src(0, IR3_REG_IMMED)->fim_val = $2; }

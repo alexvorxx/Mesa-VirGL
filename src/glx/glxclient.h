@@ -91,7 +91,7 @@ typedef struct __GLXDRIdrawableRec __GLXDRIdrawable;
 
 struct __GLXDRIscreenRec {
 
-   void (*destroyScreen)(struct glx_screen *psc);
+   void (*deinitScreen)(struct glx_screen *psc);
 
    __GLXDRIdrawable *(*createDrawable)(struct glx_screen *psc,
 				       XID drawable,
@@ -112,7 +112,6 @@ struct __GLXDRIscreenRec {
 		     int64_t *msc, int64_t *sbc);
    int (*setSwapInterval)(__GLXDRIdrawable *pdraw, int interval);
    int (*getSwapInterval)(__GLXDRIdrawable *pdraw);
-   int (*getBufferAge)(__GLXDRIdrawable *pdraw);
    void (*bindTexImage)(__GLXDRIdrawable *pdraw, int buffer, const int *attribs);
 
    int maxSwapInterval;
@@ -129,6 +128,8 @@ struct __GLXDRIdrawableRec
    GLenum textureFormat;        /* EXT_texture_from_pixmap support */
    unsigned long eventMask;
    int refcount;
+
+   __DRIdrawable *dri_drawable;
 };
 
 /*
@@ -142,7 +143,7 @@ extern __GLXDRIdisplay *driwindowsCreateDisplay(Display * dpy);
 
 
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
 struct glx_screen *dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred, bool *return_zink);
 void dri3_destroy_display(__GLXDRIdisplay * dpy);
 #endif
@@ -514,12 +515,17 @@ struct glx_screen
    bool force_direct_context;
    bool allow_invalid_glx_destroy_window;
    bool keep_native_window_glx_drawable;
+   bool can_EXT_texture_from_pixmap;
+
+   char *driverName;
 
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
     /**
      * Per screen direct rendering interface functions and data.
      */
-   __GLXDRIscreen *driScreen;
+   __GLXDRIscreen driScreen;
+   __DRIscreen *frontend_screen;
+   const __DRIconfig **driver_configs;
 #endif
 
     /**
@@ -594,6 +600,7 @@ struct glx_display
 
    __glxHashTable *dri2Hash;
    bool has_multibuffer;
+   bool has_explicit_modifiers;
 #endif
 #ifdef GLX_USE_WINDOWSGL
    __GLXDRIdisplay *windowsdriDisplay;

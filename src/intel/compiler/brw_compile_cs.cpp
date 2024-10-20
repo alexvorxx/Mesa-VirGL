@@ -100,7 +100,7 @@ const unsigned *
 brw_compile_cs(const struct brw_compiler *compiler,
                struct brw_compile_cs_params *params)
 {
-   const nir_shader *nir = params->base.nir;
+   struct nir_shader *nir = params->base.nir;
    const struct brw_cs_prog_key *key = params->key;
    struct brw_cs_prog_data *prog_data = params->prog_data;
 
@@ -112,6 +112,8 @@ brw_compile_cs(const struct brw_compiler *compiler,
    prog_data->base.total_shared = nir->info.shared_size;
    prog_data->base.ray_queries = nir->info.ray_queries;
    prog_data->base.total_scratch = 0;
+   prog_data->uses_inline_data = brw_nir_uses_inline_data(nir);
+   assert(compiler->devinfo->verx10 >= 125 || !prog_data->uses_inline_data);
 
    if (!nir->info.workgroup_size_variable) {
       prog_data->local_size[0] = nir->info.workgroup_size[0];
@@ -220,4 +222,3 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
    return g.get_assembly();
 }
-

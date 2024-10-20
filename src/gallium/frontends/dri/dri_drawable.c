@@ -148,18 +148,17 @@ dri_st_framebuffer_flush_swapbuffers(struct st_context *st,
 /**
  * This is called when we need to set up GL rendering to a new X window.
  */
-struct dri_drawable *
-dri_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
+__DRIdrawable *
+dri_create_drawable(__DRIscreen *psp, const __DRIconfig *config,
                     bool isPixmap, void *loaderPrivate)
 {
+   struct dri_screen *screen = dri_screen(psp);
+   const struct gl_config *visual = &config->modes;
    struct dri_drawable *drawable = NULL;
 
-   if (isPixmap)
-      goto fail;		       /* not implemented */
-
    drawable = CALLOC_STRUCT(dri_drawable);
-   if (drawable == NULL)
-      goto fail;
+   if (!drawable)
+      return NULL;
 
    drawable->loaderPrivate = loaderPrivate;
    drawable->refcount = 1;
@@ -181,10 +180,20 @@ dri_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
    drawable->base.ID = p_atomic_inc_return(&drifb_ID);
    drawable->base.fscreen = &screen->base;
 
-   return drawable;
-fail:
-   FREE(drawable);
-   return NULL;
+   switch (screen->type) {
+   case DRI_SCREEN_DRI3:
+   case DRI_SCREEN_KMS_SWRAST:
+      dri2_init_drawable(drawable, isPixmap, visual->alphaBits);
+      break;
+   case DRI_SCREEN_SWRAST:
+      drisw_init_drawable(drawable, isPixmap, visual->alphaBits);
+      break;
+   case DRI_SCREEN_KOPPER:
+      kopper_init_drawable(drawable, isPixmap, visual->alphaBits);
+      break;
+   }
+
+   return opaque_dri_drawable(drawable);
 }
 
 static void

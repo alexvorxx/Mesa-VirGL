@@ -80,7 +80,7 @@ hk_GetMemoryFdPropertiesKHR(VkDevice device,
 
    pMemoryFdProperties->memoryTypeBits = type_bits;
 
-   agx_bo_unreference(bo);
+   agx_bo_unreference(&dev->dev, bo);
 
    return VK_SUCCESS;
 }
@@ -139,7 +139,7 @@ hk_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo *pAllocateInfo,
       if (handle_types)
          flags |= AGX_BO_SHAREABLE;
 
-      mem->bo = agx_bo_create(&dev->dev, aligned_size, flags, "App memory");
+      mem->bo = agx_bo_create(&dev->dev, aligned_size, 0, flags, "App memory");
       if (!mem->bo) {
          result = vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto fail_alloc;
@@ -190,7 +190,7 @@ hk_FreeMemory(VkDevice device, VkDeviceMemory _mem,
    struct hk_memory_heap *heap = &pdev->mem_heaps[type->heapIndex];
    p_atomic_add(&heap->used, -((int64_t)mem->bo->size));
 
-   agx_bo_unreference(mem->bo);
+   agx_bo_unreference(&dev->dev, mem->bo);
 
    vk_device_memory_destroy(&dev->vk, pAllocator, &mem->vk);
 }
@@ -243,7 +243,7 @@ hk_MapMemory2KHR(VkDevice device, const VkMemoryMapInfoKHR *pMemoryMapInfo,
                        "Memory object already mapped.");
    }
 
-   mem->map = mem->bo->ptr.cpu;
+   mem->map = mem->bo->map;
    *ppData = mem->map + offset;
 
    return VK_SUCCESS;
@@ -312,7 +312,7 @@ hk_GetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR *pGetFdInfo,
    switch (pGetFdInfo->handleType) {
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
-      *pFD = agx_bo_export(memory->bo);
+      *pFD = agx_bo_export(&dev->dev, memory->bo);
       return VK_SUCCESS;
    default:
       assert(!"unsupported handle type");
@@ -326,5 +326,5 @@ hk_GetDeviceMemoryOpaqueCaptureAddress(
 {
    VK_FROM_HANDLE(hk_device_memory, mem, pInfo->memory);
 
-   return mem->bo->ptr.gpu;
+   return mem->bo->va->addr;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -ex
+set -e
 
 comma_separated() {
   local IFS=,
@@ -8,15 +8,11 @@ comma_separated() {
 }
 
 if [[ -z "$VK_DRIVER" ]]; then
+    printf "VK_DRIVER is not defined\n"
     exit 1
 fi
 
 INSTALL=$(realpath -s "$PWD"/install)
-
-RESULTS=$(realpath -s "$PWD"/results)
-
-# Make sure the results folder exists
-mkdir -p "$RESULTS"
 
 # Set up the driver environment.
 # Modifiying here directly LD_LIBRARY_PATH may cause problems when
@@ -37,6 +33,7 @@ export WINEESYNC=1
 if [ -f "$INSTALL/$GPU_VERSION-vkd3d-skips.txt" ]; then
   mapfile -t skips < <(grep -vE '^#|^$' "$INSTALL/$GPU_VERSION-vkd3d-skips.txt")
   VKD3D_TEST_EXCLUDE=$(comma_separated "${skips[@]}")
+  printf 'VKD3D_TEST_EXCLUDE=%s\n' "$VKD3D_TEST_EXCLUDE"
   export VKD3D_TEST_EXCLUDE
 fi
 
@@ -49,9 +46,9 @@ if ! vulkaninfo | grep driverInfo | tee /tmp/version.txt | grep -F "Mesa $MESA_V
 fi
 
 # Gather the list expected failures
-EXPECTATIONFILE="$RESULTS/$GPU_VERSION-vkd3d-fails.txt"
+EXPECTATIONFILE="$RESULTS_DIR/$GPU_VERSION-vkd3d-fails.txt"
 if [ -f "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" ]; then
-    cp "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" "$EXPECTATIONFILE"
+    grep -vE '^(#|$)' "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" | sort > "$EXPECTATIONFILE"
 else
     printf "%s\n" "$GPU_VERSION-vkd3d-fails.txt not found, assuming a \"no failures\" baseline."
     touch "$EXPECTATIONFILE"
@@ -69,7 +66,7 @@ mapfile -t flakes_dups < <(
   printf '%s\n' "${flakes[@]}" | sort | uniq -d
 )
 if [ ${#flakes_dups[@]} -gt 0 ]; then
-  echo >&2 'Duplicate flakes lines:'
+  printf >&2 'Duplicate flakes lines:\n'
   printf >&2 '  %s\n' "${flakes_dups[@]}"
   exit 1
 fi
@@ -81,58 +78,85 @@ for flake in "${flakes[@]}"; do
   fi
 done
 if [ ${#flakes_in_baseline[@]} -gt 0 ]; then
-  echo >&2 "Flakes found in $EXPECTATIONFILE:"
+  printf >&2 "Flakes found in %s:\n" "$EXPECTATIONFILE"
   printf >&2 '  %s\n' "${flakes_in_baseline[@]}"
   exit 1
 fi
 
 printf "%s\n" "Running vkd3d-proton testsuite..."
 
-if ! /vkd3d-proton-tests/x64/bin/d3d12 &> "$RESULTS/vkd3d-proton-log.txt"; then
-    # Check if the executable finished (ie. no segfault).
-    if ! grep "tests executed" "$RESULTS/vkd3d-proton-log.txt" > /dev/null; then
-        error "Failed, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
-        exit 1
-    fi
+LOGFILE="$RESULTS_DIR/vkd3d-proton-log.txt"
+TEST_LOGS="$RESULTS_DIR/test-logs"
+(cd /vkd3d-proton-tests && tests/test-runner.sh x64/bin/d3d12 --jobs "${FDO_CI_CONCURRENT:-4}" --output-dir "$TEST_LOGS" | tee "$LOGFILE")
 
-    # Collect all the failures
-    RESULTSFILE="$RESULTS/$GPU_VERSION.txt"
-    # Sometimes, some lines are randomly (?) prefixed with one of these:
-    # 058f:info:vkd3d_pipeline_library_disk_cache_initial_setup:
-    # 058f:info:vkd3d_pipeline_library_disk_cache_merge:
-    # 058f:info:vkd3d_pipeline_library_disk_thread_main:
-    # As a result, we have to specifically start the grep at the test name.
-    if ! grep -oE "test_\w+:.*Test failed.*$" "$RESULTS"/vkd3d-proton-log.txt > "$RESULTSFILE"; then
-      error "Failed to get the list of failing tests, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
-      exit 1
-    fi
+printf '\n\n'
 
-    # Ignore flakes when comparing
-    STABLERESULTSFILE="$RESULTS/$GPU_VERSION-results-minus-flakes.txt"
-    cp "$RESULTSFILE" "$STABLERESULTSFILE"
-    for flake in "${flakes[@]}"; do
-      grep -vF "$flake" "$STABLERESULTSFILE" > tmp && mv tmp "$STABLERESULTSFILE"
-    done
+# Check if the executable finished (ie. no segfault).
+if ! grep -E "^Finished" "$LOGFILE" > /dev/null; then
+    error "Failed, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
+    exit 1
+fi
 
-    # Make sure that the failures found in this run match the current expectation
-    if ! diff --color=always -u "$EXPECTATIONFILE" "$STABLERESULTSFILE"; then
-        error "Changes found, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
-        exit 1
-    fi
+# Print list of flakes seen this time
+flakes_seen=()
+for flake in "${flakes[@]}"; do
+  if grep -qF "FAILED $flake" "$LOGFILE"; then
+    flakes_seen+=("$flake")
+  fi
+done
+if [ ${#flakes_seen[@]} -gt 0 ]; then
+  # Keep this string and output format in line with the corresponding
+  # deqp-runner message
+  printf >&2 '\nSome known flakes found:\n'
+  printf >&2 '  %s\n' "${flakes_seen[@]}"
+fi
 
-    # Print list of flakes seen this time
-    flakes_seen=()
-    for flake in "${flakes[@]}"; do
-      if grep -qF "$flake" "$RESULTSFILE"; then
-        flakes_seen+=("$flake")
-      fi
-    done
-    if [ ${#flakes_seen[@]} -gt 0 ]; then
-      # Keep this string and output format in line with the corresponding
-      # deqp-runner message
-      echo >&2 'Some known flakes found:'
-      printf >&2 '  %s\n' "${flakes_seen[@]}"
-    fi
+# Collect all the failures
+mapfile -t fails < <(grep -oE "^FAILED .+$" "$LOGFILE" | cut -d' ' -f2 | sort)
+
+# Save test output for failed tests (before excluding flakes)
+for failed_test in "${fails[@]}"; do
+  cp "$TEST_LOGS/$failed_test.log" "$RESULTS/$failed_test.log"
+done
+
+# Ignore flakes when comparing
+for flake in "${flakes[@]}"; do
+  for idx in "${!fails[@]}"; do
+    grep -qF "$flake" <<< "${fails[$idx]}" && unset -v 'fails[$idx]'
+  done
+done
+
+RESULTSFILE="$RESULTS/$GPU_VERSION.txt"
+for failed_test in "${fails[@]}"; do
+  if ! grep -qE "$failed_test end" "$RESULTS/$failed_test.log"; then
+    test_status=Crash
+  elif grep -qE "Test failed:" "$RESULTS/$failed_test.log"; then
+    test_status=Fail
+  else
+    test_status=Unknown
+  fi
+  printf '%s,%s\n' "$failed_test" "$test_status"
+done > "$RESULTSFILE"
+
+# Catch tests listed but not executed or not failing
+mapfile -t expected_fail_lines < "$EXPECTATIONFILE"
+for expected_fail_line in "${expected_fail_lines[@]}"; do
+  test_name=$(cut -d, -f1 <<< "$expected_fail_line")
+  if [ ! -f "$TEST_LOGS/$test_name.log" ]; then
+    test_status='UnexpectedImprovement(Skip)'
+  elif [ ! -f "$RESULTS/$test_name.log" ]; then
+    test_status='UnexpectedImprovement(Pass)'
+  else
+    continue
+  fi
+  printf '%s,%s\n' "$test_name" "$test_status"
+done >> "$RESULTSFILE"
+
+mapfile -t unexpected_results < <(comm -23 "$RESULTSFILE" "$EXPECTATIONFILE")
+if [ ${#unexpected_results[@]} -gt 0 ]; then
+  printf >&2 '\nUnexpected results:\n'
+  printf >&2 '  %s\n' "${unexpected_results[@]}"
+  exit 1
 fi
 
 exit 0

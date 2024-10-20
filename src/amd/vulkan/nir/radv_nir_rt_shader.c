@@ -215,6 +215,7 @@ struct rt_variables {
    /* Output variables for intersection & anyhit shaders. */
    nir_variable *ahit_accept;
    nir_variable *ahit_terminate;
+   nir_variable *terminated;
 
    unsigned stack_size;
 };
@@ -266,6 +267,7 @@ create_rt_variables(nir_shader *shader, struct radv_device *device, const VkPipe
 
    vars.ahit_accept = nir_variable_create(shader, nir_var_shader_temp, glsl_bool_type(), "ahit_accept");
    vars.ahit_terminate = nir_variable_create(shader, nir_var_shader_temp, glsl_bool_type(), "ahit_terminate");
+   vars.terminated = nir_variable_create(shader, nir_var_shader_temp, glsl_bool_type(), "terminated");
 
    return vars;
 }
@@ -309,6 +311,7 @@ map_rt_variables(struct hash_table *var_remap, struct rt_variables *src, const s
    _mesa_hash_table_insert(var_remap, src->opaque, dst->opaque);
    _mesa_hash_table_insert(var_remap, src->ahit_accept, dst->ahit_accept);
    _mesa_hash_table_insert(var_remap, src->ahit_terminate, dst->ahit_terminate);
+   _mesa_hash_table_insert(var_remap, src->terminated, dst->terminated);
 }
 
 /*
@@ -628,12 +631,18 @@ radv_lower_rt_instruction(nir_builder *b, nir_instr *instr, void *_data)
       break;
    }
    case nir_intrinsic_report_ray_intersection: {
-      nir_push_if(b, nir_iand(b, nir_fge(b, nir_load_var(b, vars->tmax), intr->src[0].ssa),
-                              nir_fge(b, intr->src[0].ssa, nir_load_var(b, vars->tmin))));
+      nir_def *in_range = nir_iand(b, nir_fge(b, nir_load_var(b, vars->tmax), intr->src[0].ssa),
+                                   nir_fge(b, intr->src[0].ssa, nir_load_var(b, vars->tmin)));
+      nir_def *terminated = nir_load_var(b, vars->terminated);
+      nir_push_if(b, nir_iand(b, in_range, nir_inot(b, terminated)));
       {
          nir_store_var(b, vars->ahit_accept, nir_imm_true(b), 0x1);
          nir_store_var(b, vars->tmax, intr->src[0].ssa, 1);
          nir_store_var(b, vars->hit_kind, intr->src[1].ssa, 1);
+         nir_def *terminate_on_first_hit =
+            nir_test_mask(b, nir_load_var(b, vars->cull_mask_and_flags), SpvRayFlagsTerminateOnFirstHitKHRMask);
+         nir_store_var(b, vars->terminated, nir_ior(b, terminate_on_first_hit, nir_load_var(b, vars->ahit_terminate)),
+                       1);
       }
       nir_pop_if(b, NULL);
       break;
@@ -783,22 +792,8 @@ inline_constants(nir_shader *dst, nir_shader *src)
    if (!src->constant_data_size)
       return;
 
-   uint32_t align_mul = 1;
-   if (dst->constant_data_size) {
-      nir_foreach_block (block, nir_shader_get_entrypoint(src)) {
-         nir_foreach_instr (instr, block) {
-            if (instr->type != nir_instr_type_intrinsic)
-               continue;
-
-            nir_intrinsic_instr *intrinsic = nir_instr_as_intrinsic(instr);
-            if (intrinsic->intrinsic == nir_intrinsic_load_constant)
-               align_mul = MAX2(align_mul, nir_intrinsic_align_mul(intrinsic));
-         }
-      }
-   }
-
    uint32_t old_constant_data_size = dst->constant_data_size;
-   uint32_t base_offset = align(dst->constant_data_size, align_mul);
+   uint32_t base_offset = align(dst->constant_data_size, 64);
    dst->constant_data_size = base_offset + src->constant_data_size;
    dst->constant_data = rerzalloc_size(dst, dst->constant_data, old_constant_data_size, dst->constant_data_size);
    memcpy((char *)dst->constant_data + base_offset, src->constant_data, src->constant_data_size);
@@ -806,14 +801,21 @@ inline_constants(nir_shader *dst, nir_shader *src)
    if (!base_offset)
       return;
 
+   uint32_t base_align_mul = base_offset ? 1 << (ffs(base_offset) - 1) : NIR_ALIGN_MUL_MAX;
    nir_foreach_block (block, nir_shader_get_entrypoint(src)) {
       nir_foreach_instr (instr, block) {
          if (instr->type != nir_instr_type_intrinsic)
             continue;
 
          nir_intrinsic_instr *intrinsic = nir_instr_as_intrinsic(instr);
-         if (intrinsic->intrinsic == nir_intrinsic_load_constant)
+         if (intrinsic->intrinsic == nir_intrinsic_load_constant) {
             nir_intrinsic_set_base(intrinsic, base_offset + nir_intrinsic_base(intrinsic));
+
+            uint32_t align_mul = nir_intrinsic_align_mul(intrinsic);
+            uint32_t align_offset = nir_intrinsic_align_offset(intrinsic);
+            align_mul = MIN2(align_mul, base_align_mul);
+            nir_intrinsic_set_align(intrinsic, align_mul, align_offset % align_mul);
+         }
       }
    }
 }
@@ -842,23 +844,6 @@ insert_rt_case(nir_builder *b, nir_shader *shader, struct rt_variables *vars, ni
    ralloc_free(var_remap);
 }
 
-static bool
-radv_lower_payload_arg_to_offset(nir_builder *b, nir_intrinsic_instr *instr, void *data)
-{
-   if (instr->intrinsic != nir_intrinsic_trace_ray)
-      return false;
-
-   nir_deref_instr *payload = nir_src_as_deref(instr->src[10]);
-   assert(payload->deref_type == nir_deref_type_var);
-
-   b->cursor = nir_before_instr(&instr->instr);
-   nir_def *offset = nir_imm_int(b, payload->var->data.driver_location);
-
-   nir_src_rewrite(&instr->src[10], offset);
-
-   return true;
-}
-
 void
 radv_nir_lower_rt_io(nir_shader *nir, bool monolithic, uint32_t payload_offset)
 {
@@ -870,17 +855,6 @@ radv_nir_lower_rt_io(nir_shader *nir, bool monolithic, uint32_t payload_offset)
 
       NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
    } else {
-      if (nir->info.stage == MESA_SHADER_RAYGEN) {
-         /* Use nir_lower_vars_to_explicit_types to assign the payload locations. We call
-          * nir_lower_vars_to_explicit_types later after splitting the payloads.
-          */
-         uint32_t scratch_size = nir->scratch_size;
-         nir_lower_vars_to_explicit_types(nir, nir_var_function_temp, glsl_get_natural_size_align_bytes);
-         nir->scratch_size = scratch_size;
-
-         nir_shader_intrinsics_pass(nir, radv_lower_payload_arg_to_offset, nir_metadata_control_flow, NULL);
-      }
-
       NIR_PASS(_, nir, radv_nir_lower_ray_payload_derefs, payload_offset);
    }
 }
@@ -1493,6 +1467,7 @@ handle_candidate_aabb(nir_builder *b, struct radv_leaf_intersection *intersectio
 
    nir_store_var(b, data->vars->ahit_accept, nir_imm_false(b), 0x1);
    nir_store_var(b, data->vars->ahit_terminate, nir_imm_false(b), 0x1);
+   nir_store_var(b, data->vars->terminated, nir_imm_false(b), 0x1);
 
    if (data->vars->ahit_isec_count)
       nir_store_var(b, data->vars->ahit_isec_count,
@@ -1519,9 +1494,7 @@ handle_candidate_aabb(nir_builder *b, struct radv_leaf_intersection *intersectio
       nir_store_var(b, data->vars->idx, sbt_idx, 1);
       nir_store_var(b, data->trav_vars->hit, nir_imm_true(b), 1);
 
-      nir_def *terminate_on_first_hit = nir_test_mask(b, args->flags, SpvRayFlagsTerminateOnFirstHitKHRMask);
-      nir_def *ray_terminated = nir_load_var(b, data->vars->ahit_terminate);
-      nir_break_if(b, nir_ior(b, terminate_on_first_hit, ray_terminated));
+      nir_break_if(b, nir_load_var(b, data->vars->terminated));
    }
    nir_pop_if(b, NULL);
 }

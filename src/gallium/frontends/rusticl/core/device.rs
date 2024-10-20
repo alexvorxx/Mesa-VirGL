@@ -46,6 +46,7 @@ pub struct Device {
     pub lib_clc: NirShader,
     pub caps: DeviceCaps,
     helper_ctx: Mutex<PipeContext>,
+    reusable_ctx: Mutex<Vec<PipeContext>>,
 }
 
 #[derive(Default)]
@@ -216,6 +217,7 @@ impl Device {
             clc_features: Vec::new(),
             formats: HashMap::new(),
             lib_clc: lib_clc?,
+            reusable_ctx: Mutex::new(Vec::new()),
         };
 
         // check if we are embedded or full profile first
@@ -293,6 +295,14 @@ impl Device {
 
                 fs.insert(t, flags as cl_mem_flags);
             }
+
+            // Restrict supported formats with 1DBuffer images. This is an OpenCL CTS workaround.
+            // See https://github.com/KhronosGroup/OpenCL-CTS/issues/1889
+            let image1d_mask = fs[&CL_MEM_OBJECT_IMAGE1D];
+            if let Some(entry) = fs.get_mut(&CL_MEM_OBJECT_IMAGE1D_BUFFER) {
+                *entry &= image1d_mask;
+            }
+
             self.formats.insert(f.cl_image_format, fs);
         }
 
@@ -452,7 +462,7 @@ impl Device {
             // The minimum value is 2048 if CL_DEVICE_IMAGE_SUPPORT is CL_TRUE
             self.image_array_size() < 2048 ||
             // The minimum value is 65536 if CL_DEVICE_IMAGE_SUPPORT is CL_TRUE
-            self.image_buffer_size() < 65536
+            self.image_buffer_max_size_pixels() < 65536
             {
                 return true;
             }
@@ -509,7 +519,7 @@ impl Device {
             // The minimum value is 256 if CL_DEVICE_IMAGE_SUPPORT is CL_TRUE
             if self.image_array_size() < 256 ||
             // The minimum value is 2048 if CL_DEVICE_IMAGE_SUPPORT is CL_TRUE
-            self.image_buffer_size() < 2048
+            self.image_buffer_max_size_pixels() < 2048
             {
                 res = CLVersion::Cl1_1;
             }
@@ -858,11 +868,18 @@ impl Device {
         }
     }
 
-    pub fn image_buffer_size(&self) -> usize {
+    pub fn image_buffer_max_size_pixels(&self) -> usize {
         if self.caps.has_images {
             min(
-                // the CTS requires it to not exceed `CL_MAX_MEM_ALLOC_SIZE`
-                self.max_mem_alloc(),
+                // The CTS requires it to not exceed `CL_MAX_MEM_ALLOC_SIZE`, also we need to divide
+                // by the max pixel size, because this cap is in pixels, not bytes.
+                //
+                // The CTS also casts this to int in a couple of places,
+                // see: https://github.com/KhronosGroup/OpenCL-CTS/issues/2056
+                min(
+                    self.max_mem_alloc() / MAX_PIXEL_SIZE_BYTES,
+                    c_int::MAX as cl_ulong,
+                ),
                 self.screen
                     .param(pipe_cap::PIPE_CAP_MAX_TEXEL_BUFFER_ELEMENTS_UINT)
                     as cl_ulong,
@@ -969,8 +986,24 @@ impl Device {
         })
     }
 
+    fn reusable_ctx(&self) -> MutexGuard<Vec<PipeContext>> {
+        self.reusable_ctx.lock().unwrap()
+    }
+
     pub fn screen(&self) -> &Arc<PipeScreen> {
         &self.screen
+    }
+
+    pub fn create_context(&self) -> Option<PipeContext> {
+        self.reusable_ctx()
+            .pop()
+            .or_else(|| self.screen.create_context())
+    }
+
+    pub fn recycle_context(&self, ctx: PipeContext) {
+        if Platform::dbg().reuse_context {
+            self.reusable_ctx().push(ctx);
+        }
     }
 
     pub fn subgroup_sizes(&self) -> Vec<usize> {

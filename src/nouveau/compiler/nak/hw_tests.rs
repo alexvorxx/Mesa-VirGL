@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT
 
 use crate::api::{GetDebugFlags, ShaderBin, DEBUG};
-use crate::cfg::CFGBuilder;
 use crate::hw_runner::{Runner, CB0};
 use crate::ir::*;
 use crate::sm50::ShaderModel50;
 use crate::sm70::ShaderModel70;
 
 use acorn::Acorn;
+use compiler::cfg::CFGBuilder;
 use nak_bindings::*;
 use std::str::FromStr;
 use std::sync::OnceLock;
@@ -1134,4 +1134,57 @@ fn test_shr64() {
             assert_eq!(d[4], (dst >> 32) as u32);
         }
     }
+}
+
+#[test]
+fn test_f2fp_pack_ab() {
+    let run = RunSingleton::get();
+    let mut b = TestShaderBuilder::new(run.sm.as_ref());
+
+    let srcs = SSARef::from([
+        b.ld_test_data(0, MemType::B32)[0],
+        b.ld_test_data(4, MemType::B32)[0],
+    ]);
+
+    let dst = b.alloc_ssa(RegFile::GPR, 1);
+    b.push_op(OpF2FP {
+        dst: dst.into(),
+        srcs: [srcs[0].into(), srcs[1].into()],
+        rnd_mode: FRndMode::NearestEven,
+    });
+    b.st_test_data(8, MemType::B32, dst[0].into());
+
+    let dst = b.alloc_ssa(RegFile::GPR, 1);
+    b.push_op(OpF2FP {
+        dst: dst.into(),
+        srcs: [srcs[0].into(), 2.0.into()],
+        rnd_mode: FRndMode::Zero,
+    });
+    b.st_test_data(12, MemType::B32, dst[0].into());
+
+    let bin = b.compile();
+
+    let zero = 0_f32.to_bits();
+    let one = 1_f32.to_bits();
+    let two = 2_f32.to_bits();
+    let complex = 1.4556_f32.to_bits();
+
+    let mut data = Vec::new();
+    data.push([one, two, 0, 0]);
+    data.push([one, zero, 0, 0]);
+    data.push([complex, zero, 0, 0]);
+    run.run.run(&bin, &mut data).unwrap();
+
+    // { 1.0fp16, 2.0fp16 }
+    assert_eq!(data[0][2], 0x3c004000);
+    // { 1.0fp16, 2.0fp16 }
+    assert_eq!(data[0][3], 0x3c004000);
+    // { 1.0fp16, 0.0fp16 }
+    assert_eq!(data[1][2], 0x3c000000);
+    // { 1.0fp16, 0.0fp16 }
+    assert_eq!(data[1][3], 0x3c004000);
+    // { 1.456fp16, 0.0fp16 }
+    assert_eq!(data[2][2], 0x3dd30000);
+    // { 1.455fp16, 0.0fp16 }
+    assert_eq!(data[2][3], 0x3dd24000);
 }

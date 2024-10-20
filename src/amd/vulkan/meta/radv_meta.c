@@ -512,7 +512,7 @@ radv_device_init_meta(struct radv_device *device)
       goto fail_astc_decode;
 
    if (radv_uses_device_generated_commands(device)) {
-      result = radv_device_init_dgc_prepare_state(device);
+      result = radv_device_init_dgc_prepare_state(device, on_demand);
       if (result != VK_SUCCESS)
          goto fail_dgc;
    }

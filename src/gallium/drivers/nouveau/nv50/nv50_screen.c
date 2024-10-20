@@ -472,7 +472,7 @@ nv50_screen_destroy(struct pipe_screen *pscreen)
 {
    struct nv50_screen *screen = nv50_screen(pscreen);
 
-   if (!nouveau_drm_screen_unref(&screen->base))
+   if (!screen->base.initialized)
       return;
 
    if (screen->blitter)

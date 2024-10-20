@@ -35,6 +35,7 @@ dEQP-VK.api.image_clearing.core.clear_color_image.2d.optimal.remaining_array_lay
 dEQP-VK.api.image_clearing.core.clear_color_image.2d.optimal.remaining_array_layers.r32g32b32a32_sfloat
 dEQP-VK.api.image_clearing.core.partial_clear_color_attachment.cube_layers.r16g16_sint
 
+dEQP-VK.binding_model.descriptorset_random.sets4.unifindexed.noubo.nosbo.nosampledimg.lowimgnotex.iublimitlow.uab.comp.noia.0
 dEQP-VK.binding_model.descriptorset_random.sets4.unifindexed.ubolimitlow.sbolimitlow.sampledimglow.outimgtexlow.iublimitlow.uab.vert.noia.0
 dEQP-VK.binding_model.mutable_descriptor.multiple_arrays.constant_size.aliasing.update_write.no_source.no_source.pool_expand_types.update_after_bind.index_constant.comp
 dEQP-VK.binding_model.mutable_descriptor.multiple_arrays.unbounded.noaliasing.update_copy.nonmutable_source.host_only_source.pool_no_types.update_after_bind.index_push_constant.comp
@@ -136,6 +137,8 @@ dEQP-VK.query_pool.occlusion_query.get_results_size_32_stride_12_with_availabili
 dEQP-VK.query_pool.statistics_query.fragment_shader_invocations.primary.64bits_dstoffset_cmdcopyquerypoolresults_triangle_fan_clear_depth
 
 dEQP-VK.renderpass.suballocation.multisample_resolve.layers_6.r16_sfloat.samples_4_resolve_level_2
+dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_2_1_multiviewport
+dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_2_2_multiviewport
 dEQP-VK.renderpass2.suballocation.multisample_resolve.layers_6.r8g8b8a8_snorm.samples_4_resolve_level_2
 dEQP-VK.renderpass2.suballocation.multisample_resolve.r32g32b32a32_sfloat.max_attachments_8_samples_4
 
@@ -206,6 +209,11 @@ dEQP-VK.texture.shadow.cube_array.nearest_mipmap_nearest.non_seamless_less_or_eq
 
 dEQP-VK.ubo.2_level_array.scalar.column_major_mat3.fragment
 dEQP-VK.ubo.3_level_array.std430.mat4x2.both_comp_access
+
+
+dynamic-dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_1_2_multiviewport
+dynamic-dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_2_1_multiviewport
+dynamic-dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_2_2_multiviewport
 
 
 gmem-dEQP-VK.api.image_clearing.dedicated_allocation.clear_color_image.2d.linear.remaining_array_layers.r16g16_unorm_33x128

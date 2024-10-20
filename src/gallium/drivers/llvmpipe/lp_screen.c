@@ -123,17 +123,23 @@ llvmpipe_get_name(struct pipe_screen *screen)
 static int
 llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
 {
-#ifdef HAVE_LINUX_UDMABUF_H
+#ifdef HAVE_LIBDRM
    struct llvmpipe_screen *lscreen = llvmpipe_screen(screen);
 #endif
-
    switch (param) {
-#ifdef HAVE_LINUX_UDMABUF_H
    case PIPE_CAP_DMABUF:
+#ifdef HAVE_LIBDRM
+      if (lscreen->winsys->get_fd)
+         return DRM_PRIME_CAP_IMPORT | DRM_PRIME_CAP_EXPORT;
+#ifdef HAVE_LINUX_UDMABUF_H
       if (lscreen->udmabuf_fd != -1)
          return DRM_PRIME_CAP_IMPORT | DRM_PRIME_CAP_EXPORT;
       else
          return DRM_PRIME_CAP_IMPORT;
+#endif
+#endif
+      return 0;
+#if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
    case PIPE_CAP_NATIVE_FENCE_FD:
       return lscreen->dummy_sync_fd != -1;
 #endif
@@ -145,6 +151,8 @@ llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_FRAGMENT_SHADER_TEXTURE_LOD:
    case PIPE_CAP_FRAGMENT_SHADER_DERIVATIVES:
       return 1;
+   case PIPE_CAP_MULTIVIEW:
+      return 2;
    case PIPE_CAP_MAX_DUAL_SOURCE_RENDER_TARGETS:
       return 1;
    case PIPE_CAP_MAX_STREAM_OUTPUT_BUFFERS:
@@ -382,6 +390,8 @@ llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
       return LLVM_VERSION_MAJOR >= 15;
    case PIPE_CAP_NIR_IMAGES_AS_DEREF:
       return 0;
+   case PIPE_CAP_ALPHA_TO_COVERAGE_DITHER_CONTROL:
+      return 1;
    default:
       return u_pipe_screen_get_param_defaults(screen, param);
    }
@@ -663,6 +673,7 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .lower_fisnormal = true,
    .lower_fquantize2f16 = true,
    .driver_functions = true,
+   .scalarize_ddx = true,
 };
 
 
@@ -989,11 +1000,11 @@ update_cache_sha1_cpu(struct mesa_sha1 *ctx)
    const struct util_cpu_caps_t *cpu_caps = util_get_cpu_caps();
    /*
     * Don't need the cpu cache affinity stuff. The rest
-    * is contained in first 5 dwords.
+    * is contained in first 6 dwords.
     */
    STATIC_ASSERT(offsetof(struct util_cpu_caps_t, num_L3_caches)
-                 == 5 * sizeof(uint32_t));
-   _mesa_sha1_update(ctx, cpu_caps, 5 * sizeof(uint32_t));
+                 == 6 * sizeof(uint32_t));
+   _mesa_sha1_update(ctx, cpu_caps, 6 * sizeof(uint32_t));
 }
 
 
@@ -1175,7 +1186,7 @@ llvmpipe_create_screen(struct sw_winsys *winsys)
                                               screen->num_threads);
    screen->num_threads = MIN2(screen->num_threads, LP_MAX_THREADS);
 
-#ifdef HAVE_LINUX_UDMABUF_H
+#if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
    screen->udmabuf_fd = open("/dev/udmabuf", O_RDWR);
    llvmpipe_init_screen_fence_funcs(&screen->base);
 #endif

@@ -1,24 +1,6 @@
 /*
  * Copyright © 2020 Google, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include <stdlib.h>
@@ -182,10 +164,45 @@ validate_dst(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr,
    validate_assert(                                                            \
       ctx, (type_size(type) <= 16) == !!((reg)->flags & IR3_REG_HALF))
 
+static bool
+block_contains(struct ir3_block *block, struct ir3_instruction *instr)
+{
+   foreach_instr (block_instr, &block->instr_list) {
+      if (block_instr == instr)
+         return true;
+   }
+
+   return false;
+}
+
+static void
+validate_rpt(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
+{
+   if (ir3_instr_is_first_rpt(instr)) {
+      /* All instructions in a repeat group should be in the same block as the
+       * first one.
+       */
+      foreach_instr_rpt (rpt, instr) {
+         validate_assert(ctx, rpt->block == instr->block);
+
+         /* Validate that the block actually contains the repeat. This would
+          * fail if, for example, list_delinit is called instead of
+          * ir3_instr_remove.
+          */
+         validate_assert(ctx, block_contains(instr->block, rpt));
+      }
+   } else if (instr->repeat) {
+      validate_assert(ctx, ir3_supports_rpt(ctx->ir->compiler, instr->opc));
+      validate_assert(ctx, !instr->nop);
+   }
+}
+
 static void
 validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
 {
    struct ir3_register *last_reg = NULL;
+
+   validate_rpt(ctx, instr);
 
    foreach_src_n (reg, n, instr) {
       if (reg->flags & IR3_REG_RELATIV)
@@ -330,6 +347,15 @@ validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
 
       break;
    case 3:
+      switch (instr->opc) {
+      case OPC_MAD_S24:
+      case OPC_MAD_U24:
+         validate_assert(ctx, !(instr->dsts[0]->flags & IR3_REG_HALF));
+         validate_assert(ctx, !(instr->srcs[0]->flags & IR3_REG_HALF));
+         break;
+      default:
+         break;
+      }
       /* Validate that cat3 opc matches the src type.  We've already checked
        * that all the src regs are same type
        */
@@ -410,6 +436,17 @@ validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
       case OPC_LDC_K:
          validate_assert(ctx, !(instr->srcs[0]->flags & IR3_REG_HALF));
          validate_assert(ctx, !(instr->srcs[1]->flags & IR3_REG_HALF));
+         break;
+      case OPC_LDP:
+         validate_assert(ctx, !(instr->srcs[0]->flags & IR3_REG_HALF));
+         validate_assert(ctx, !(instr->srcs[1]->flags & IR3_REG_HALF));
+         validate_assert(ctx, !(instr->srcs[2]->flags & IR3_REG_HALF));
+         validate_reg_size(ctx, instr->dsts[0], instr->cat6.type);
+         break;
+      case OPC_SHFL:
+         validate_reg_size(ctx, instr->srcs[0], instr->cat6.type);
+         validate_assert(ctx, !(instr->srcs[1]->flags & IR3_REG_HALF));
+         validate_reg_size(ctx, instr->dsts[0], instr->cat6.type);
          break;
       default:
          validate_reg_size(ctx, instr->dsts[0], instr->cat6.type);

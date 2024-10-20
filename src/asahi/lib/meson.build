@@ -10,7 +10,6 @@ libasahi_lib_files = files(
   'agx_border.c',
   'agx_device.c',
   'agx_device_virtio.c',
-  'agx_formats.c',
   'agx_linker.c',
   'agx_bg_eot.c',
   'agx_tilebuffer.c',
@@ -27,6 +26,7 @@ libasahi_lib_files = files(
   'agx_nir_prolog_epilog.c',
   'agx_ppp.h',
   'agx_scratch.c',
+  'agx_va.c',
   'pool.c',
 )
 
@@ -36,6 +36,9 @@ libasahi_decode_files = files(
 
 libagx_shader_files = files(
   'shaders/libagx.h',
+  'shaders/compression.cl',
+  'shaders/draws.cl',
+  'shaders/draws.h',
   'shaders/geometry.cl',
   'shaders/geometry.h',
   'shaders/query.cl',
@@ -108,7 +111,7 @@ if with_tests
       c_args : [c_msvc_compat_args, no_override_init_args],
       gnu_symbol_visibility : 'hidden',
       dependencies: [idep_gtest, idep_agx_pack, idep_mesautil],
-      link_with : [libasahi_lib],
+      link_with : [libasahi_lib, libasahi_layout],
     ),
     suite : ['asahi'],
     protocol : 'gtest',

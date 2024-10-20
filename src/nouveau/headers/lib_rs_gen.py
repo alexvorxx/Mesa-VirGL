@@ -111,7 +111,7 @@ def main():
             f.write(TEMPLATE_RS.render(root=root))
             try:
                 subprocess.run(['rustfmt', args.out_rs], check=True)
-            except subprocess.CalledProcessError:
+            except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
 
     except Exception:

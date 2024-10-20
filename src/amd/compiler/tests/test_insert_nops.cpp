@@ -1116,7 +1116,7 @@ BEGIN_TEST(insert_nops.valu_mask_write)
    bld.sopp(aco_opcode::s_waitcnt_depctr, 0xfffe);
    bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand(PhysReg(1), s1));
 
-   /* Instruction which is both involved in the hazard and is a mitigation. */
+   /* v_cndmask_b32 is both involved in the hazard and is a mitigation. */
    //! p_unit_test 4
    //! v1: %0:v[0] = v_cndmask_b32 %0:s[2], 0, %0:s[0-1]
    //! s1: %0:s[1] = s_mov_b32 0
@@ -1127,6 +1127,156 @@ BEGIN_TEST(insert_nops.valu_mask_write)
                 Operand::zero(), Operand(PhysReg(0), s2));
    bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(1), s1), Operand::zero());
    bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand(PhysReg(1), s1));
+
+   /* VALU reading exec does not mitigate the hazard. We also don't consider literals. */
+   //! p_unit_test 5
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! v1: %0:v[1] = v_mov_b32 %0:exec_lo
+   //! s1: %0:s[1] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[2] = s_mov_b32 %0:s[1]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(257), v1), Operand(exec_lo, s1));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(1), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand(PhysReg(1), s1));
+
+   //! p_unit_test 6
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! v1: %0:v[1] = v_mov_b32 0x200
+   //! s1: %0:s[1] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[2] = s_mov_b32 %0:s[1]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(6));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(257), v1), Operand::literal32(0x200));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(1), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand(PhysReg(1), s1));
+
+   /* Basic case: VALU. */
+   //! p_unit_test 7
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! s1: %0:s[1] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! v1: %0:v[1] = v_mov_b32 %0:s[1]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(7));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(1), s1), Operand::zero());
+   bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(257), v1), Operand(PhysReg(1), s1));
+
+   /* SALU which both reads and writes a lane mask SGPR. */
+   //! p_unit_test 8
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! s1: %0:s[1] = s_mov_b32 0
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[2-3]
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[2] = s_mov_b32 %0:s[1]
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[4] = s_mov_b32 %0:s[2]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(8));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(1), s1), Operand::zero());
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(2), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand(PhysReg(1), s1));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(4), s1), Operand(PhysReg(2), s1));
+
+   /* When a SALU writes a lane mask, we shouldn't forget the current SGPRs used as lane masks then
+    * written. */
+   //! p_unit_test 9
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! s1: %0:s[0] = s_mov_b32 0
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[2-3]
+   //! s1: %0:s[2] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[4] = s_mov_b32 %0:s[0]
+   //! s1: %0:s[5] = s_mov_b32 %0:s[2]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(9));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(0), s1), Operand::zero());
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(2), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(4), s1), Operand(PhysReg(0), s1));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(5), s1), Operand(PhysReg(2), s1));
+
+   /* When a SALU writes a lane mask, we shouldn't forget all SGPRs used as lane masks, there might
+    * be later problematic writes. */
+   //! p_unit_test 10
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! s1: %0:s[0] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[4] = s_mov_b32 %0:s[0]
+   //! s1: %0:s[1] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[5] = s_mov_b32 %0:s[1]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(10));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(0), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(4), s1), Operand(PhysReg(0), s1));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(1), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(5), s1), Operand(PhysReg(1), s1));
+
+   //! p_unit_test 11
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   //! s1: %0:s[0] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[4] = s_mov_b32 %0:s[0]
+   //! s1: %0:s[0] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[5] = s_mov_b32 %0:s[0]
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(11));
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(0), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(4), s1), Operand(PhysReg(0), s1));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(0), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(5), s1), Operand(PhysReg(0), s1));
+
+   //! p_unit_test 12
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(12));
+
+   //! BB1
+   //! /* logical preds: / linear preds: BB0, / kind: */
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
+   bld.reset(program->create_and_insert_block());
+   program->blocks[0].linear_succs.push_back(1);
+   program->blocks[1].linear_preds.push_back(0);
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(0), s2));
+
+   //! BB2
+   //! /* logical preds: / linear preds: BB0, / kind: */
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[2-3]
+   bld.reset(program->create_and_insert_block());
+   program->blocks[0].linear_succs.push_back(2);
+   program->blocks[2].linear_preds.push_back(0);
+   bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+                Operand::zero(), Operand(PhysReg(2), s2));
+
+   //! BB3
+   //! /* logical preds: / linear preds: BB1, BB2, / kind: uniform, */
+   //! s1: %0:s[0] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[4] = s_mov_b32 %0:s[0]
+   //! s1: %0:s[2] = s_mov_b32 0
+   //! s_waitcnt_depctr sa_sdst(0)
+   //! s1: %0:s[5] = s_mov_b32 %0:s[2]
+   bld.reset(program->create_and_insert_block());
+   program->blocks[1].linear_succs.push_back(3);
+   program->blocks[2].linear_succs.push_back(3);
+   program->blocks[3].linear_preds.push_back(1);
+   program->blocks[3].linear_preds.push_back(2);
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(0), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(4), s1), Operand(PhysReg(0), s1));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(2), s1), Operand::zero());
+   bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(5), s1), Operand(PhysReg(2), s1));
 
    finish_insert_nops_test();
 END_TEST
@@ -1646,9 +1796,24 @@ BEGIN_TEST(insert_nops.setpc_gfx11)
    /* VALUMaskWriteHazard */
    //! p_unit_test 4
    //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:vcc
+   //! s1: %0:vcc_hi = s_mov_b32 0
    //! s_waitcnt_depctr va_vdst(0) sa_sdst(0)
+   //! v1: %0:v[0] = v_xor3_b32 %0:v[0], %0:s[0], %0:s[0]
+   //! s_waitcnt_depctr va_vdst(0)
    //! s_setpc_b64 0
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(4));
+   bld.vop2(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
+            Operand::zero(), Operand(vcc, s2));
+   bld.sop1(aco_opcode::s_mov_b32, Definition(vcc_hi, s1), Operand::c32(0));
+   bld.sop1(aco_opcode::s_setpc_b64, Operand::zero(8));
+
+   //! p_unit_test 8
+   //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:vcc
+   //! s_waitcnt_depctr va_vdst(0)
+   //! v1: %0:v[0] = v_xor3_b32 %0:v[0], %0:s[0], %0:s[0]
+   //! s_waitcnt_depctr va_vdst(0)
+   //! s_setpc_b64 0
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(8));
    bld.vop2(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
             Operand::zero(), Operand(vcc, s2));
    bld.sop1(aco_opcode::s_setpc_b64, Operand::zero(8));
@@ -1657,6 +1822,8 @@ BEGIN_TEST(insert_nops.setpc_gfx11)
    //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:vcc
    //! s2: %0:vcc = s_mov_b64 0
    //! s_waitcnt_depctr va_vdst(0) sa_sdst(0)
+   //! v1: %0:v[0] = v_xor3_b32 %0:v[0], %0:s[0], %0:s[0]
+   //! s_waitcnt_depctr va_vdst(0)
    //! s_setpc_b64 0
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
    bld.vop2(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),

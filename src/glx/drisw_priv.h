@@ -37,12 +37,6 @@ struct drisw_screen
 {
    struct glx_screen base;
 
-   __DRIscreen *driScreen;
-   __GLXDRIscreen vtable;
-
-   const __DRIconfig **driver_configs;
-
-   char *name;
    bool kopper;
 };
 
@@ -51,19 +45,11 @@ struct drisw_drawable
    __GLXDRIdrawable base;
 
    GC gc;
-   __DRIdrawable *driDrawable;
    struct glx_config *config;
    XImage *ximage;
    XShmSegmentInfo shminfo;
    int xDepth;
    int swapInterval;
 };
-
-_X_HIDDEN int
-drisw_query_renderer_integer(struct glx_screen *base, int attribute,
-                             unsigned int *value);
-_X_HIDDEN int
-drisw_query_renderer_string(struct glx_screen *base, int attribute,
-                            const char **value);
 
 #endif

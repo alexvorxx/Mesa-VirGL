@@ -52,11 +52,11 @@ if with_any_llvmpipe
 else
   driver_llvmpipe = declare_dependency()
 endif
-if with_gallium_llvmpipe and with_gallium_softpipe
+if with_any_llvmpipe and with_gallium_softpipe
   driver_swrast = declare_dependency(
     dependencies : [ driver_softpipe, driver_llvmpipe ],
   )
-elif with_gallium_llvmpipe
+elif with_any_llvmpipe
   driver_swrast = driver_llvmpipe
 elif with_gallium_softpipe
   driver_swrast = driver_softpipe
@@ -201,6 +201,23 @@ if with_gallium_rusticl
   subdir('frontends/rusticl')
   subdir('targets/rusticl')
 endif
+if with_glx == 'xlib'
+  subdir('winsys/sw/xlib')
+  subdir('frontends/glx/xlib')
+  subdir('targets/libgl-xlib')
+endif
+if with_gallium_va
+  subdir('frontends/va')
+  if not with_dri
+    subdir('targets/va')
+  endif
+endif
+if with_gallium_vdpau
+  subdir('frontends/vdpau')
+  if not with_dri
+    subdir('targets/vdpau')
+  endif
+endif
 if with_dri
   subdir('frontends/dri')
   subdir('targets/dri')
@@ -208,23 +225,6 @@ endif
 if with_osmesa
   subdir('frontends/osmesa')
   subdir('targets/osmesa')
-endif
-if with_glx == 'xlib'
-  subdir('winsys/sw/xlib')
-  subdir('frontends/glx/xlib')
-  subdir('targets/libgl-xlib')
-endif
-if with_gallium_vdpau
-  subdir('frontends/vdpau')
-  subdir('targets/vdpau')
-endif
-if with_gallium_omx != 'disabled'
-  subdir('frontends/omx')
-  subdir('targets/omx')
-endif
-if with_gallium_va
-  subdir('frontends/va')
-  subdir('targets/va')
 endif
 if with_gallium_xa
   subdir('frontends/xa')

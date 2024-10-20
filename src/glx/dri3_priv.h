@@ -65,21 +65,16 @@
 struct dri3_screen {
    struct glx_screen base;
 
-   __GLXDRIscreen vtable;
-
    /* DRI screen is created for display GPU in case of prime gpu offloading.
     * This screen is used to allocate linear_buffer from
     * display GPU space in dri3_alloc_render_buffer() function.
     * In case of not gpu offloading driScreenDisplayGPU will be assigned with
-    * driScreenRenderGPU.
+    * base.frontend_screen.
     * In case of prime gpu offloading if display and render driver names are different
     * (potentially not compatible), driScreenDisplayGPU will be NULL but
     * fd_display_gpu will still hold fd for display driver.
     */
    __DRIscreen *driScreenDisplayGPU;
-   __DRIscreen *driScreenRenderGPU;
-
-   const __DRIconfig **driver_configs;
 
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;
@@ -99,11 +94,3 @@ struct dri3_drawable {
    uint64_t previous_ust;
    unsigned frames;
 };
-
-_X_HIDDEN int
-dri3_query_renderer_integer(struct glx_screen *base, int attribute,
-                            unsigned int *value);
-
-_X_HIDDEN int
-dri3_query_renderer_string(struct glx_screen *base, int attribute,
-                           const char **value);

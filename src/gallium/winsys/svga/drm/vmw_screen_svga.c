@@ -20,7 +20,8 @@
 #include <sys/mman.h>
 
 #include "svga_cmd.h"
-#include "svga3d_caps.h"
+#include "svga3d_devcaps.h"
+#include "vmw_surf_defs.h"
 
 #include "c11/threads.h"
 #include "util/os_file.h"
@@ -39,7 +40,6 @@
 #include "vmw_shader.h"
 #include "vmw_query.h"
 #include "vmwgfx_drm.h"
-#include "svga3d_surfacedefs.h"
 #include "xf86drm.h"
 
 /**
@@ -505,10 +505,10 @@ vmw_svga_winsys_surface_create(struct svga_winsys_screen *sws,
     * Used for the backing buffer GB surfaces, and to approximate
     * when to flush on non-GB hosts.
     */
-   buffer_size = svga3dsurface_get_serialized_size_extended(format, size,
-                                                            numMipLevels,
-                                                            numLayers,
-                                                            num_samples);
+   buffer_size = vmw_surf_get_serialized_size_extended(format, size,
+                                                       numMipLevels,
+                                                       numLayers,
+                                                       num_samples);
    if (flags & SVGA3D_SURFACE_BIND_STREAM_OUTPUT)
       buffer_size += sizeof(SVGA3dDXSOState);
 
@@ -578,9 +578,9 @@ vmw_svga_winsys_surface_can_create(struct svga_winsys_screen *sws,
    struct vmw_winsys_screen *vws = vmw_winsys_screen(sws);
    uint32_t buffer_size;
 
-   buffer_size = svga3dsurface_get_serialized_size(format, size,
-                                                   numMipLevels,
-                                                   numLayers);
+   buffer_size = vmw_surf_get_serialized_size(format, size,
+                                              numMipLevels,
+                                              numLayers);
    if (numSamples > 1)
       buffer_size *= numSamples;
 

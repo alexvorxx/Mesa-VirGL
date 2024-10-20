@@ -150,6 +150,16 @@ print_definition(const Definition* definition, FILE* output, unsigned flags)
       print_reg_class(definition->regClass(), output);
    if (definition->isPrecise())
       fprintf(output, "(precise)");
+   if (definition->isInfPreserve() || definition->isNaNPreserve() || definition->isSZPreserve()) {
+      fprintf(output, "(");
+      if (definition->isSZPreserve())
+         fprintf(output, "Sz");
+      if (definition->isInfPreserve())
+         fprintf(output, "Inf");
+      if (definition->isNaNPreserve())
+         fprintf(output, "NaN");
+      fprintf(output, "Preserve)");
+   }
    if (definition->isNUW())
       fprintf(output, "(nuw)");
    if (definition->isNoCSE())
@@ -347,27 +357,21 @@ print_instr_format_specific(enum amd_gfx_level gfx_level, const Instruction* ins
          break;
       }
       case aco_opcode::s_waitcnt_depctr: {
-         unsigned va_vdst = (imm >> 12) & 0xf;
-         unsigned va_sdst = (imm >> 9) & 0x7;
-         unsigned va_ssrc = (imm >> 8) & 0x1;
-         unsigned hold_cnt = (imm >> 7) & 0x1;
-         unsigned vm_vsrc = (imm >> 2) & 0x7;
-         unsigned va_vcc = (imm >> 1) & 0x1;
-         unsigned sa_sdst = imm & 0x1;
-         if (va_vdst != 0xf)
-            fprintf(output, " va_vdst(%d)", va_vdst);
-         if (va_sdst != 0x7)
-            fprintf(output, " va_sdst(%d)", va_sdst);
-         if (va_ssrc != 0x1)
-            fprintf(output, " va_ssrc(%d)", va_ssrc);
-         if (hold_cnt != 0x1)
-            fprintf(output, " holt_cnt(%d)", hold_cnt);
-         if (vm_vsrc != 0x7)
-            fprintf(output, " vm_vsrc(%d)", vm_vsrc);
-         if (va_vcc != 0x1)
-            fprintf(output, " va_vcc(%d)", va_vcc);
-         if (sa_sdst != 0x1)
-            fprintf(output, " sa_sdst(%d)", sa_sdst);
+         depctr_wait wait = parse_depctr_wait(instr);
+         if (wait.va_vdst != 0xf)
+            fprintf(output, " va_vdst(%d)", wait.va_vdst);
+         if (wait.va_sdst != 0x7)
+            fprintf(output, " va_sdst(%d)", wait.va_sdst);
+         if (wait.va_ssrc != 0x1)
+            fprintf(output, " va_ssrc(%d)", wait.va_ssrc);
+         if (wait.hold_cnt != 0x1)
+            fprintf(output, " holt_cnt(%d)", wait.hold_cnt);
+         if (wait.vm_vsrc != 0x7)
+            fprintf(output, " vm_vsrc(%d)", wait.vm_vsrc);
+         if (wait.va_vcc != 0x1)
+            fprintf(output, " va_vcc(%d)", wait.va_vcc);
+         if (wait.sa_sdst != 0x1)
+            fprintf(output, " sa_sdst(%d)", wait.sa_sdst);
          break;
       }
       case aco_opcode::s_delay_alu: {
@@ -532,8 +536,11 @@ print_instr_format_specific(enum amd_gfx_level gfx_level, const Instruction* ins
    }
    case Format::MIMG: {
       const MIMG_instruction& mimg = instr->mimg();
-      unsigned identity_dmask =
-         !instr->definitions.empty() ? (1 << instr->definitions[0].size()) - 1 : 0xf;
+      unsigned identity_dmask = 0xf;
+      if (!instr->definitions.empty()) {
+         unsigned num_channels = instr->definitions[0].bytes() / (mimg.d16 ? 2 : 4);
+         identity_dmask = (1 << num_channels) - 1;
+      }
       if ((mimg.dmask & identity_dmask) != identity_dmask)
          fprintf(output, " dmask:%s%s%s%s", mimg.dmask & 0x1 ? "x" : "",
                  mimg.dmask & 0x2 ? "y" : "", mimg.dmask & 0x4 ? "z" : "",
@@ -601,6 +608,10 @@ print_instr_format_specific(enum amd_gfx_level gfx_level, const Instruction* ins
          fprintf(output, " BB%d", branch.target[0]);
       if (branch.target[1] != 0)
          fprintf(output, ", BB%d", branch.target[1]);
+      if (branch.rarely_taken)
+         fprintf(output, " rarely_taken");
+      if (branch.never_taken)
+         fprintf(output, " never_taken");
       break;
    }
    case Format::PSEUDO_REDUCTION: {
@@ -1018,7 +1029,9 @@ aco_print_instr(enum amd_gfx_level gfx_level, const Instruction* instr, FILE* ou
             fprintf(output, " ");
 
          if (i < 3) {
-            if (neg[i])
+            if (neg[i] && instr->operands[i].isConstant())
+               fprintf(output, "neg(");
+            else if (neg[i])
                fprintf(output, "-");
             if (abs[i])
                fprintf(output, "|");
@@ -1039,6 +1052,8 @@ aco_print_instr(enum amd_gfx_level gfx_level, const Instruction* instr, FILE* ou
             if (opsel_lo[i] || !opsel_hi[i])
                fprintf(output, ".%c%c", opsel_lo[i] ? 'y' : 'x', opsel_hi[i] ? 'y' : 'x');
 
+            if (neg[i] && instr->operands[i].isConstant())
+               fprintf(output, ")");
             if (neg_lo[i])
                fprintf(output, "*[-1,1]");
             if (neg_hi[i])

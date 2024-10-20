@@ -7,6 +7,7 @@
 #include "hk_device.h"
 
 #include "agx_bg_eot.h"
+#include "agx_helpers.h"
 #include "agx_opcodes.h"
 #include "agx_scratch.h"
 #include "hk_cmd_buffer.h"
@@ -33,6 +34,17 @@
 #include <fcntl.h>
 #include <xf86drm.h>
 
+/* clang-format off */
+static const struct debug_named_value hk_perf_options[] = {
+   {"notess",    HK_PERF_NOTESS,   "Skip draws with tessellation"},
+   {"noborder",  HK_PERF_NOBORDER, "Disable custom border colour emulation"},
+   {"nobarrier", HK_PERF_NOBARRIER,"Ignore pipeline barriers"},
+   {"batch",     HK_PERF_BATCH,    "Batch submissions"},
+   {"norobust",  HK_PERF_NOROBUST, "Disable robustness"},
+   DEBUG_NAMED_VALUE_END
+};
+/* clang-format on */
+
 /*
  * We preupload some constants so we can cheaply reference later without extra
  * allocation and copying.
@@ -43,31 +55,22 @@ static VkResult
 hk_upload_rodata(struct hk_device *dev)
 {
    dev->rodata.bo =
-      agx_bo_create(&dev->dev, AGX_SAMPLER_LENGTH, 0, "Read only data");
+      agx_bo_create(&dev->dev, AGX_SAMPLER_LENGTH, 0, 0, "Read only data");
 
    if (!dev->rodata.bo)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   uint8_t *map = dev->rodata.bo->ptr.cpu;
+   uint8_t *map = dev->rodata.bo->map;
    uint32_t offs = 0;
 
    offs = align(offs, 8);
    agx_pack(&dev->rodata.txf_sampler, USC_SAMPLER, cfg) {
       cfg.start = 0;
       cfg.count = 1;
-      cfg.buffer = dev->rodata.bo->ptr.gpu + offs;
+      cfg.buffer = dev->rodata.bo->va->addr + offs;
    }
 
-   agx_pack(map + offs, SAMPLER, cfg) {
-      /* Allow mipmapping. This is respected by txf, weirdly. */
-      cfg.mip_filter = AGX_MIP_FILTER_NEAREST;
-
-      /* Out-of-bounds reads must return 0 */
-      cfg.wrap_s = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.wrap_t = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.wrap_r = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.border_colour = AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
-   }
+   agx_pack_txf_sampler((struct agx_sampler_packed *)(map + offs));
    offs += AGX_SAMPLER_LENGTH;
 
    /* The image heap is allocated on the device prior to the rodata. The heap
@@ -81,11 +84,11 @@ hk_upload_rodata(struct hk_device *dev)
    agx_pack(&dev->rodata.image_heap, USC_UNIFORM, cfg) {
       cfg.start_halfs = HK_IMAGE_HEAP_UNIFORM;
       cfg.size_halfs = 4;
-      cfg.buffer = dev->rodata.bo->ptr.gpu + offs;
+      cfg.buffer = dev->rodata.bo->va->addr + offs;
    }
 
-   uint64_t *image_heap_ptr = dev->rodata.bo->ptr.cpu + offs;
-   *image_heap_ptr = dev->images.bo->ptr.gpu;
+   uint64_t *image_heap_ptr = dev->rodata.bo->map + offs;
+   *image_heap_ptr = dev->images.bo->va->addr;
    offs += sizeof(uint64_t);
 
    /* The geometry state buffer isn't strictly readonly data, but we only have a
@@ -97,15 +100,15 @@ hk_upload_rodata(struct hk_device *dev)
     * So, we allocate it here for convenience.
     */
    offs = align(offs, sizeof(uint64_t));
-   dev->rodata.geometry_state = dev->rodata.bo->ptr.gpu + offs;
+   dev->rodata.geometry_state = dev->rodata.bo->va->addr + offs;
    offs += sizeof(struct agx_geometry_state);
 
    /* For null readonly buffers, we need to allocate 16 bytes of zeroes for
     * robustness2 semantics on read.
     */
    offs = align(offs, 16);
-   dev->rodata.zero_sink = dev->rodata.bo->ptr.gpu + offs;
-   memset(dev->rodata.bo->ptr.cpu + offs, 0, 16);
+   dev->rodata.zero_sink = dev->rodata.bo->va->addr + offs;
+   memset(dev->rodata.bo->map + offs, 0, 16);
    offs += 16;
 
    /* For null storage descriptors, we need to reserve 16 bytes to catch writes.
@@ -113,7 +116,7 @@ hk_upload_rodata(struct hk_device *dev)
     * without more work.
     */
    offs = align(offs, 16);
-   dev->rodata.null_sink = dev->rodata.bo->ptr.gpu + offs;
+   dev->rodata.null_sink = dev->rodata.bo->va->addr + offs;
    offs += 16;
 
    return VK_SUCCESS;
@@ -308,8 +311,9 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(hk_physical_device, pdev, physicalDevice);
    VkResult result = VK_ERROR_OUT_OF_HOST_MEMORY;
    struct hk_device *dev;
+   struct hk_instance *instance = (struct hk_instance *)pdev->vk.instance;
 
-   dev = vk_zalloc2(&pdev->vk.instance->alloc, pAllocator, sizeof(*dev), 8,
+   dev = vk_zalloc2(&instance->vk.alloc, pAllocator, sizeof(*dev), 8,
                     VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
    if (!dev)
       return vk_error(pdev, VK_ERROR_OUT_OF_HOST_MEMORY);
@@ -359,6 +363,20 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
       result = vk_errorf(dev, VK_ERROR_INITIALIZATION_FAILED,
                          "failed to open device %s", path);
       goto fail_init;
+   }
+
+   dev->perftest = debug_get_flags_option("HK_PERFTEST", hk_perf_options, 0);
+
+   if (instance->no_border) {
+      dev->perftest |= HK_PERF_NOBORDER;
+   }
+
+   if (HK_PERF(dev, NOROBUST)) {
+      dev->vk.enabled_features.robustBufferAccess = false;
+      dev->vk.enabled_features.robustBufferAccess2 = false;
+      dev->vk.enabled_features.robustImageAccess = false;
+      dev->vk.enabled_features.robustImageAccess2 = false;
+      dev->vk.enabled_features.pipelineRobustness = false;
    }
 
    bool succ = agx_open_device(NULL, &dev->dev);
@@ -429,6 +447,7 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
 
    *pDevice = hk_device_to_handle(dev);
 
+   simple_mtx_init(&dev->scratch.lock, mtx_plain);
    agx_scratch_init(&dev->dev, &dev->scratch.vs);
    agx_scratch_init(&dev->dev, &dev->scratch.fs);
    agx_scratch_init(&dev->dev, &dev->scratch.cs);
@@ -440,7 +459,7 @@ fail_mem_cache:
 fail_queue:
    hk_queue_finish(dev, &dev->queue);
 fail_rodata:
-   agx_bo_unreference(dev->rodata.bo);
+   agx_bo_unreference(&dev->dev, dev->rodata.bo);
 fail_bg_eot:
    agx_bg_eot_cleanup(&dev->bg_eot);
 fail_internal_shaders_2:
@@ -483,12 +502,13 @@ hk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    agx_scratch_fini(&dev->scratch.vs);
    agx_scratch_fini(&dev->scratch.fs);
    agx_scratch_fini(&dev->scratch.cs);
+   simple_mtx_destroy(&dev->scratch.lock);
 
    hk_destroy_sampler_heap(dev, &dev->samplers);
    hk_descriptor_table_finish(dev, &dev->images);
    hk_descriptor_table_finish(dev, &dev->occlusion_queries);
-   agx_bo_unreference(dev->rodata.bo);
-   agx_bo_unreference(dev->heap);
+   agx_bo_unreference(&dev->dev, dev->rodata.bo);
+   agx_bo_unreference(&dev->dev, dev->heap);
    agx_bg_eot_cleanup(&dev->bg_eot);
    agx_close_device(&dev->dev);
    vk_free(&dev->vk.alloc, dev);

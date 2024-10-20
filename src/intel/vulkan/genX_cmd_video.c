@@ -1181,11 +1181,32 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    }
 }
 
+static void
+handle_inline_query_end(struct anv_cmd_buffer *cmd_buffer,
+                        const VkVideoInlineQueryInfoKHR *inline_query)
+{
+   ANV_FROM_HANDLE(anv_query_pool, pool, inline_query->queryPool);
+
+   struct anv_address query_addr = {
+      .bo = pool->bo,
+      .offset = inline_query->firstQuery * pool->stride,
+   };
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), flush) {
+      flush.PostSyncOperation = WriteImmediateData;
+      flush.Address = query_addr;
+      flush.ImmediateData = true;
+   }
+}
+
 void
 genX(CmdDecodeVideoKHR)(VkCommandBuffer commandBuffer,
                         const VkVideoDecodeInfoKHR *frame_info)
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
+
+   const VkVideoInlineQueryInfoKHR *inline_query =
+      vk_find_struct_const(frame_info->pNext, VIDEO_INLINE_QUERY_INFO_KHR);
 
    switch (cmd_buffer->video.vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
@@ -1197,4 +1218,7 @@ genX(CmdDecodeVideoKHR)(VkCommandBuffer commandBuffer,
    default:
       assert(0);
    }
+
+   if (inline_query)
+      handle_inline_query_end(cmd_buffer, inline_query);
 }

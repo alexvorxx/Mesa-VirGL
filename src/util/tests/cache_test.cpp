@@ -202,19 +202,8 @@ test_disk_cache_create(void *mem_ctx, const char *cache_dir_name,
    /* Test with XDG_CACHE_HOME set */
    setenv("XDG_CACHE_HOME", CACHE_TEST_TMP "/xdg-cache-home", 1);
    cache = disk_cache_create("test", driver_id, 0);
-   EXPECT_FALSE(cache_exists(cache))
-      << "disk_cache_create with XDG_CACHE_HOME set with a non-existing parent directory";
-
-   err = mkdir(CACHE_TEST_TMP, 0755);
-   if (err != 0) {
-      fprintf(stderr, "Error creating %s: %s\n", CACHE_TEST_TMP, strerror(errno));
-      GTEST_FAIL();
-   }
-   disk_cache_destroy(cache);
-
-   cache = disk_cache_create("test", driver_id, 0);
    EXPECT_TRUE(cache_exists(cache))
-      << "disk_cache_create with XDG_CACHE_HOME set";
+      << "disk_cache_create with XDG_CACHE_HOME set with a non-existing parent directory";
 
    char *path = ralloc_asprintf(
       mem_ctx, "%s%s", CACHE_TEST_TMP "/xdg-cache-home/", cache_dir_name);

@@ -58,6 +58,10 @@ static const struct debug_control debug_control[] = {
    { NULL, },
 };
 
+static bool present_false(VkPhysicalDevice pdevice, int fd) {
+   return false;
+}
+
 VkResult
 wsi_device_init(struct wsi_device *wsi,
                 VkPhysicalDevice pdevice,
@@ -206,7 +210,7 @@ wsi_device_init(struct wsi_device *wsi,
       WSI_GET_CB(WaitSemaphores);
 #undef WSI_GET_CB
 
-#ifdef VK_USE_PLATFORM_XCB_KHR
+#if defined(VK_USE_PLATFORM_XCB_KHR)
    result = wsi_x11_init_wsi(wsi, alloc, dri_options);
    if (result != VK_SUCCESS)
       goto fail;
@@ -226,6 +230,12 @@ wsi_device_init(struct wsi_device *wsi,
 
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
    result = wsi_display_init_wsi(wsi, alloc, display_fd);
+   if (result != VK_SUCCESS)
+      goto fail;
+#endif
+
+#ifdef VK_USE_PLATFORM_METAL_EXT
+   result = wsi_metal_init_wsi(wsi, alloc, pdevice);
    if (result != VK_SUCCESS)
       goto fail;
 #endif
@@ -270,6 +280,21 @@ wsi_device_init(struct wsi_device *wsi,
       }
    }
 
+   /* can_present_on_device is a function pointer used to determine if images
+    * can be presented directly on a given device file descriptor (fd).
+    * If HAVE_LIBDRM is defined, it will be initialized to a platform-specific
+    * function (wsi_device_matches_drm_fd). Otherwise, it is initialized to
+    * present_false to ensure that it always returns false, preventing potential
+    * segmentation faults from unchecked calls.
+    * Drivers for non-PCI based GPUs are expected to override this after calling
+    * wsi_device_init().
+    */
+#ifdef HAVE_LIBDRM
+   wsi->can_present_on_device = wsi_device_matches_drm_fd;
+#else
+   wsi->can_present_on_device = present_false;
+#endif
+
    return VK_SUCCESS;
 fail:
    wsi_device_finish(wsi, alloc);
@@ -292,8 +317,11 @@ wsi_device_finish(struct wsi_device *wsi,
 #ifdef VK_USE_PLATFORM_WIN32_KHR
    wsi_win32_finish_wsi(wsi, alloc);
 #endif
-#ifdef VK_USE_PLATFORM_XCB_KHR
+#if defined(VK_USE_PLATFORM_XCB_KHR)
    wsi_x11_finish_wsi(wsi, alloc);
+#endif
+#if defined(VK_USE_PLATFORM_METAL_EXT)
+   wsi_metal_finish_wsi(wsi, alloc);
 #endif
 }
 

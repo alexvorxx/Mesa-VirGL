@@ -441,6 +441,8 @@ class Group(object):
             v = None
             prefix = "   cl[%2d] =" % index
 
+            lines = []
+
             for contributor in word.contributors:
                 field = contributor.field
                 name = field.name
@@ -464,17 +466,25 @@ class Group(object):
                         value = "__gen_to_groups({}, {}, {})".format(value,
                                 field.modifier[1], end - start + 1)
 
-                if field.type in ["uint", "hex", "address"]:
-                    s = "util_bitpack_uint(%s, %d, %d)" % \
-                        (value, start, end)
-                elif field.type in self.parser.enums:
-                    s = "util_bitpack_uint(%s, %d, %d)" % \
-                        (value, start, end)
+                if field.type in ["uint", "hex", "address", "bool"] or field.type in self.parser.enums:
+                    bits = (end - start + 1)
+                    if bits < 64:
+                        # Add some nicer error checking
+                        error = f"{self.label}::{name} out-of-bounds"
+                        bound = hex(1 << bits)
+
+                        print("#ifndef NDEBUG")
+                        print("#ifndef __OPENCL_VERSION__")
+                        print(f"if (unlikely((uint64_t){value} >= {bound})) {{")
+                        print(f"    fprintf(stderr, \"{error}, got 0x%\" PRIx64 \", max {bound}\\n\", (uint64_t) {value});")
+                        print(f"    unreachable(\"{error}\");")
+                        print(f"}}")
+                        print("#endif")
+                        print("#endif")
+
+                    s = f"util_bitpack_uint({value}, {start}, {end})"
                 elif field.type == "int":
                     s = "util_bitpack_sint(%s, %d, %d)" % \
-                        (value, start, end)
-                elif field.type == "bool":
-                    s = "util_bitpack_uint(%s, %d, %d)" % \
                         (value, start, end)
                 elif field.type == "float":
                     assert(start == 0 and end == 31)
@@ -494,10 +504,13 @@ class Group(object):
                         s = "%s >> %d" % (s, shift)
 
                     if contributor == word.contributors[-1]:
-                        print("%s %s;" % (prefix, s))
+                        lines.append("%s %s;" % (prefix, s))
                     else:
-                        print("%s %s |" % (prefix, s))
+                        lines.append("%s %s |" % (prefix, s))
                     prefix = "           "
+
+            for ln in lines:
+                print(ln)
 
             continue
 

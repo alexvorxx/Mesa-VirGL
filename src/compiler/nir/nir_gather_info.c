@@ -235,6 +235,10 @@ get_io_offset(nir_deref_instr *deref, nir_variable *var, bool is_arrayed,
          assert(glsl_type_is_array(var->type));
          return 0;
       }
+
+      if (deref->deref_type == nir_deref_type_array_wildcard)
+         return -1;
+
       assert(deref->deref_type == nir_deref_type_array);
       return nir_src_is_const(deref->arr.index) ? (nir_src_as_uint(deref->arr.index) + var->data.location_frac) / 4u : (unsigned)-1;
    }
@@ -759,6 +763,16 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       }
       break;
 
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_fine:
+   case nir_intrinsic_ddy_coarse:
+      if (shader->info.stage == MESA_SHADER_FRAGMENT)
+         shader->info.fs.needs_quad_helper_invocations = true;
+      break;
+
    case nir_intrinsic_quad_vote_any:
    case nir_intrinsic_quad_vote_all:
    case nir_intrinsic_quad_broadcast:
@@ -847,10 +861,13 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       if (nir_intrinsic_writes_external_memory(instr))
          shader->info.writes_memory = true;
 
-      if (instr->intrinsic == nir_intrinsic_image_size ||
+      if (instr->intrinsic == nir_intrinsic_image_levels ||
+          instr->intrinsic == nir_intrinsic_image_size ||
           instr->intrinsic == nir_intrinsic_image_samples ||
+          instr->intrinsic == nir_intrinsic_image_deref_levels ||
           instr->intrinsic == nir_intrinsic_image_deref_size ||
           instr->intrinsic == nir_intrinsic_image_deref_samples ||
+          instr->intrinsic == nir_intrinsic_bindless_image_levels ||
           instr->intrinsic == nir_intrinsic_bindless_image_size ||
           instr->intrinsic == nir_intrinsic_bindless_image_samples)
          shader->info.uses_resource_info_query = true;
@@ -891,15 +908,6 @@ gather_tex_info(nir_tex_instr *instr, nir_shader *shader)
 static void
 gather_alu_info(nir_alu_instr *instr, nir_shader *shader)
 {
-   if (nir_op_is_derivative(instr->op) &&
-       shader->info.stage == MESA_SHADER_FRAGMENT) {
-
-      shader->info.fs.needs_quad_helper_invocations = true;
-   }
-
-   if (instr->op == nir_op_fddx || instr->op == nir_op_fddy)
-      shader->info.uses_fddx_fddy = true;
-
    const nir_op_info *info = &nir_op_infos[instr->op];
 
    for (unsigned i = 0; i < info->num_inputs; i++) {

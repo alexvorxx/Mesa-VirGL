@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "drm-uapi/drm_fourcc.h"
+#include "vulkan/vulkan_core.h"
 
 #include "hk_buffer_view.h"
 #include "hk_entrypoints.h"
@@ -18,7 +19,7 @@
 #include "vk_format.h"
 
 uint64_t agx_best_modifiers[] = {
-   // DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED,
+   DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED,
    DRM_FORMAT_MOD_APPLE_TWIDDLED,
    DRM_FORMAT_MOD_LINEAR,
 };
@@ -27,13 +28,16 @@ static VkFormatFeatureFlags2
 hk_modifier_features(uint64_t mod, VkFormat vk_format,
                      const VkFormatProperties *props)
 {
+   /* There's no corresponding fourcc, so don't advertise modifiers */
+   if (vk_format == VK_FORMAT_B10G11R11_UFLOAT_PACK32 ||
+       vk_format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
+      return 0;
+   }
+
    if (mod == DRM_FORMAT_MOD_LINEAR)
       return props->linearTilingFeatures;
-
-   if (mod == DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED /* TODO */)
-      return 0;
-
-   return props->optimalTilingFeatures;
+   else
+      return props->optimalTilingFeatures;
 }
 
 static void

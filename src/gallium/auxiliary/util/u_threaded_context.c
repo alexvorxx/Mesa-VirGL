@@ -1524,6 +1524,7 @@ tc_set_framebuffer_state(struct pipe_context *_pipe,
    p->state.samples = fb->samples;
    p->state.layers = fb->layers;
    p->state.nr_cbufs = nr_cbufs;
+   p->state.viewmask = fb->viewmask;
 
    /* when unbinding, mark attachments as used for the current batch */
    for (unsigned i = 0; i < tc->nr_cbufs; i++) {
@@ -2399,9 +2400,19 @@ tc_create_image_handle(struct pipe_context *_pipe,
 {
    struct threaded_context *tc = threaded_context(_pipe);
    struct pipe_context *pipe = tc->pipe;
+   struct pipe_resource *resource = image->resource;
 
-   if (image->resource->target == PIPE_BUFFER)
-      tc_buffer_disable_cpu_storage(image->resource);
+   if (image->access & PIPE_IMAGE_ACCESS_WRITE &&
+       resource && resource->target == PIPE_BUFFER) {
+      struct threaded_resource *tres = threaded_resource(resource);
+
+      /* The CPU storage doesn't support writable buffer. */
+      tc_buffer_disable_cpu_storage(resource);
+
+      util_range_add(&tres->b, &tres->valid_buffer_range,
+                     image->u.buf.offset,
+                     image->u.buf.offset + image->u.buf.size);
+   }
 
    tc_sync(tc);
    return pipe->create_image_handle(pipe, image);
@@ -4517,9 +4528,8 @@ tc_call_blit(struct pipe_context *pipe, void *call)
 }
 
 static void
-tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
+tc_blit_enqueue(struct threaded_context *tc, const struct pipe_blit_info *info)
 {
-   struct threaded_context *tc = threaded_context(_pipe);
    struct tc_blit_call *blit = tc_add_call(tc, TC_CALL_blit, tc_blit_call);
 
    tc_set_resource_batch_usage(tc, info->dst.resource);
@@ -4527,11 +4537,33 @@ tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
    tc_set_resource_batch_usage(tc, info->src.resource);
    tc_set_resource_reference(&blit->info.src.resource, info->src.resource);
    memcpy(&blit->info, info, sizeof(*info));
-   if (tc->options.parse_renderpass_info) {
-      tc->renderpass_info_recording->has_resolve = info->src.resource->nr_samples > 1 &&
-                                                   info->dst.resource->nr_samples <= 1 &&
-                                                   tc->fb_resolve == info->dst.resource;
+}
+
+static void
+tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
+{
+   struct threaded_context *tc = threaded_context(_pipe);
+
+   /* filter out untracked non-resolves */
+   if (!tc->options.parse_renderpass_info ||
+       info->src.resource->nr_samples <= 1 ||
+       info->dst.resource->nr_samples > 1) {
+      tc_blit_enqueue(tc, info);
+      return;
    }
+
+   if (tc->fb_resolve == info->dst.resource) {
+      /* optimize out this blit entirely */
+      tc->renderpass_info_recording->has_resolve = true;
+      return;
+   }
+   for (unsigned i = 0; i < PIPE_MAX_COLOR_BUFS; i++) {
+      if (tc->fb_resources[i] == info->src.resource) {
+         tc->renderpass_info_recording->has_resolve = true;
+         break;
+      }
+   }
+   tc_blit_enqueue(tc, info);
 }
 
 struct tc_generate_mipmap {

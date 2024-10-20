@@ -13,6 +13,7 @@ CROSS_FILE=/cross_file-"$CROSS".txt
 
 # Delete unused bin and includes from artifacts to save space.
 rm -rf install/bin install/include
+rm -f install/lib/*.a
 
 # Strip the drivers in the artifacts to cut 80% of the artifacts size.
 if [ -n "$CROSS" ]; then
@@ -75,6 +76,7 @@ tar -cf artifacts/install.tar install
 cp -Rp .gitlab-ci/common artifacts/ci-common
 cp -Rp .gitlab-ci/lava artifacts/
 cp -Rp .gitlab-ci/b2c artifacts/
+cp bin/ci/structured_logger.py artifacts/
 
 if [ -n "$S3_ARTIFACT_NAME" ]; then
     # Pass needed files to the test stage

@@ -675,7 +675,7 @@ glXSwapBuffers(Display * dpy, GLXDrawable drawable)
       if (pdraw != NULL) {
          Bool flush = gc != &dummyContext && drawable == gc->currentDrawable;
 
-         if (pdraw->psc->driScreen->swapBuffers(pdraw, 0, 0, 0, flush) == -1)
+         if (pdraw->psc->driScreen.swapBuffers(pdraw, 0, 0, 0, flush) == -1)
              __glXSendError(dpy, GLXBadCurrentWindow, 0, X_GLXSwapBuffers, false);
          return;
       }
@@ -1150,7 +1150,7 @@ glXQueryExtensionsString(Display * dpy, int screen)
       }
 
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
-      is_direct_capable = (psc->driScreen != NULL);
+      is_direct_capable = (psc->display->driver != 0);
 #endif
       __glXCalculateUsableExtensions(psc, is_direct_capable);
    }
@@ -1557,15 +1557,13 @@ glXSwapIntervalSGI(int interval)
    }
 
 #ifdef GLX_DIRECT_RENDERING
-   if (gc->isDirect && psc && psc->driScreen &&
-          psc->driScreen->setSwapInterval) {
-      __GLXDRIdrawable *pdraw =
-    GetGLXDRIDrawable(gc->currentDpy, gc->currentDrawable);
+   if (gc->isDirect && psc && psc->driScreen.setSwapInterval) {
+      __GLXDRIdrawable *pdraw = GetGLXDRIDrawable(gc->currentDpy, gc->currentDrawable);
       /* Simply ignore the command if the GLX drawable has been destroyed but
        * the context is still bound.
        */
       if (pdraw)
-         psc->driScreen->setSwapInterval(pdraw, interval);
+         psc->driScreen.setSwapInterval(pdraw, interval);
       return 0;
    }
 #endif
@@ -1609,7 +1607,7 @@ glXSwapIntervalMESA(unsigned int interval)
 
    if (gc != &dummyContext && gc->isDirect) {
       struct glx_screen *psc = gc->psc;
-      if (psc && psc->driScreen && psc->driScreen->setSwapInterval) {
+      if (psc && psc->driScreen.setSwapInterval) {
          __GLXDRIdrawable *pdraw =
        GetGLXDRIDrawable(gc->currentDpy, gc->currentDrawable);
 
@@ -1619,7 +1617,7 @@ glXSwapIntervalMESA(unsigned int interval)
          if (!pdraw)
             return 0;
 
-         return psc->driScreen->setSwapInterval(pdraw, interval);
+         return psc->driScreen.setSwapInterval(pdraw, interval);
       }
    }
 #endif
@@ -1636,11 +1634,11 @@ glXGetSwapIntervalMESA(void)
 
    if (gc != &dummyContext && gc->isDirect) {
       struct glx_screen *psc = gc->psc;
-      if (psc && psc->driScreen && psc->driScreen->getSwapInterval) {
+      if (psc && psc->driScreen.getSwapInterval) {
          __GLXDRIdrawable *pdraw =
        GetGLXDRIDrawable(gc->currentDpy, gc->currentDrawable);
          if (pdraw)
-            return psc->driScreen->getSwapInterval(pdraw);
+            return psc->driScreen.getSwapInterval(pdraw);
       }
    }
 #endif
@@ -1672,8 +1670,8 @@ glXSwapIntervalEXT(Display *dpy, GLXDrawable drawable, int interval)
       __glXSendError(dpy, BadValue, interval, 0, True);
       return;
    }
-   if (pdraw->psc->driScreen->setSwapInterval)
-      pdraw->psc->driScreen->setSwapInterval(pdraw, interval);
+   if (pdraw->psc->driScreen.setSwapInterval)
+      pdraw->psc->driScreen.setSwapInterval(pdraw, interval);
 #endif
 }
 
@@ -1706,8 +1704,8 @@ glXGetVideoSyncSGI(unsigned int *count)
     * FIXME: there should be a GLX encoding for this call.  I can find no
     * FIXME: documentation for the GLX encoding.
     */
-   if (psc && psc->driScreen && psc->driScreen->getDrawableMSC) {
-      ret = psc->driScreen->getDrawableMSC(psc, pdraw, &ust, &msc, &sbc);
+   if (psc && psc->driScreen.getDrawableMSC) {
+      ret = psc->driScreen.getDrawableMSC(psc, pdraw, &ust, &msc, &sbc);
       *count = (unsigned) msc;
       return (ret == True) ? 0 : GLX_BAD_CONTEXT;
    }
@@ -1742,8 +1740,8 @@ glXWaitVideoSyncSGI(int divisor, int remainder, unsigned int *count)
 
    pdraw = GetGLXDRIDrawable(gc->currentDpy, gc->currentDrawable);
 
-   if (psc && psc->driScreen && psc->driScreen->waitForMSC) {
-      ret = psc->driScreen->waitForMSC(pdraw, 0, divisor, remainder, &ust, &msc,
+   if (psc && psc->driScreen.waitForMSC) {
+      ret = psc->driScreen.waitForMSC(pdraw, 0, divisor, remainder, &ust, &msc,
                    &sbc);
       *count = (unsigned) msc;
       return (ret == True) ? 0 : GLX_BAD_CONTEXT;
@@ -1819,8 +1817,8 @@ glXGetSyncValuesOML(Display *dpy, GLXDrawable drawable,
 #ifdef GLX_DIRECT_RENDERING
    pdraw = GetGLXDRIDrawable(dpy, drawable);
    psc = pdraw ? pdraw->psc : NULL;
-   if (pdraw && psc->driScreen->getDrawableMSC) {
-      ret = psc->driScreen->getDrawableMSC(psc, pdraw, ust, msc, sbc);
+   if (pdraw && psc->driScreen.getDrawableMSC) {
+      ret = psc->driScreen.getDrawableMSC(psc, pdraw, ust, msc, sbc);
       return ret;
    }
 #endif
@@ -1955,8 +1953,8 @@ glXSwapBuffersMscOML(Display *dpy, GLXDrawable drawable,
       remainder = 1;
 
 #ifdef GLX_DIRECT_RENDERING
-   if (psc->driScreen && psc->driScreen->swapBuffers)
-      return psc->driScreen->swapBuffers(pdraw, target_msc, divisor,
+   if (psc->driScreen.swapBuffers)
+      return psc->driScreen.swapBuffers(pdraw, target_msc, divisor,
                    remainder, False);
 #endif
 
@@ -1985,8 +1983,8 @@ glXWaitForMscOML(Display *dpy, GLXDrawable drawable, int64_t target_msc,
       return False;
 
 #ifdef GLX_DIRECT_RENDERING
-   if (pdraw && psc->driScreen && psc->driScreen->waitForMSC) {
-      ret = psc->driScreen->waitForMSC(pdraw, target_msc, divisor, remainder,
+   if (pdraw && psc->driScreen.waitForMSC) {
+      ret = psc->driScreen.waitForMSC(pdraw, target_msc, divisor, remainder,
                    ust, msc, sbc);
       return ret;
    }
@@ -2013,8 +2011,8 @@ glXWaitForSbcOML(Display *dpy, GLXDrawable drawable, int64_t target_sbc,
       return False;
 
 #ifdef GLX_DIRECT_RENDERING
-   if (pdraw && psc->driScreen && psc->driScreen->waitForSBC) {
-      ret = psc->driScreen->waitForSBC(pdraw, target_sbc, ust, msc, sbc);
+   if (pdraw && psc->driScreen.waitForSBC) {
+      ret = psc->driScreen.waitForSBC(pdraw, target_sbc, ust, msc, sbc);
       return ret;
    }
 #endif
@@ -2044,8 +2042,8 @@ glXCopySubBufferMESA(Display * dpy, GLXDrawable drawable,
    __GLXDRIdrawable *pdraw = GetGLXDRIDrawable(dpy, drawable);
    if (pdraw != NULL) {
       struct glx_screen *psc = pdraw->psc;
-      if (psc->driScreen->copySubBuffer != NULL) {
-         psc->driScreen->copySubBuffer(pdraw, x, y, width, height, True);
+      if (psc->driScreen.copySubBuffer != NULL) {
+         psc->driScreen.copySubBuffer(pdraw, x, y, width, height, True);
       }
 
       return;
@@ -2111,8 +2109,8 @@ glXBindTexImageEXT(Display *dpy, GLXDrawable drawable, int buffer,
    __GLXDRIdrawable *pdraw = GetGLXDRIDrawable(dpy, drawable);
    if (pdraw != NULL) {
       struct glx_screen *psc = pdraw->psc;
-      if (psc->driScreen->bindTexImage != NULL)
-         psc->driScreen->bindTexImage(pdraw, buffer, attrib_list);
+      if (psc->driScreen.bindTexImage != NULL)
+         psc->driScreen.bindTexImage(pdraw, buffer, attrib_list);
 
       return;
    }

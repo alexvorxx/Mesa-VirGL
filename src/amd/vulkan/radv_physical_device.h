@@ -55,7 +55,6 @@ struct radv_physical_device_cache_key {
    uint32_t ge_wave32 : 1;
    uint32_t invariant_geom : 1;
    uint32_t lower_discard_to_demote : 1;
-   uint32_t mesh_fast_launch_2 : 1;
    uint32_t no_fmask : 1;
    uint32_t no_ngg_gs : 1;
    uint32_t no_rt : 1;
@@ -182,7 +181,7 @@ struct radv_physical_device {
    enum radv_video_enc_hw_ver enc_hw_ver;
    uint32_t encoder_interface_version;
    bool video_encode_enabled;
-
+   bool video_decode_enabled;
    struct radv_physical_device_cache_key cache_key;
 
    uint32_t tess_distribution_mode;

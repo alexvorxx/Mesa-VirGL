@@ -11,6 +11,9 @@
         - src/freedreno/ci/$GPU_VERSION-flakes.txt
         - src/freedreno/ci/$GPU_VERSION-skips.txt
         - src/freedreno/ci/$PIGLIT_TRACES_FILE
+        - src/freedreno/ci/$GPU_VERSION-vkd3d-fails.txt
+        - src/freedreno/ci/$GPU_VERSION-vkd3d-flakes.txt
+        - src/freedreno/ci/$GPU_VERSION-vkd3d-skips.txt
         - src/freedreno/common/**/*
         - src/freedreno/drm/**/*
         - src/freedreno/fdl/**/*
@@ -55,7 +58,7 @@
       when: on_success
 
 .google-freedreno-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -67,7 +70,7 @@
       when: manual
 
 .collabora-freedreno-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -101,7 +104,7 @@
       when: on_success
 
 .google-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -113,7 +116,7 @@
       when: manual
 
 .collabora-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -133,7 +136,7 @@
     - !reference [.google-turnip-rules, rules]
 
 .google-freedreno-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   rules:
     - !reference [.test, rules]
     - !reference [.google-freedreno-manual-rules, rules]
@@ -147,14 +150,14 @@
     - !reference [.collabora-turnip-rules, rules]
 
 .collabora-freedreno-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   rules:
     - !reference [.test, rules]
     - !reference [.collabora-freedreno-manual-rules, rules]
     - !reference [.collabora-turnip-manual-rules, rules]
 
 .valve-freedreno-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -180,7 +183,7 @@
     - !reference [.collabora-freedreno-rules, rules]
 
 .google-freedreno-rules-performance:
-  stage: freedreno
+  stage: performance
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -196,7 +199,7 @@
   dependencies: null
 
 .collabora-freedreno-rules-performance:
-  stage: freedreno
+  stage: performance
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -206,7 +209,8 @@
   variables:
     JOB_PRIORITY: 40
     # Ensure that we are using the release build artifact
-    S3_ARTIFACT_NAME: mesa-arm64-default-release
+    LAVA_S3_ARTIFACT_NAME: mesa-arm64-default-release
+    S3_ARTIFACT_NAME: mesa-python-test
   needs:
     - debian/x86_64_build
     - debian-arm64-release
@@ -228,6 +232,9 @@
     KERNEL_IMAGE_TYPE: ""
     RUNNER_TAG: mesa-ci-x86-64-lava-sc7180-trogdor-kingoftown
     VK_DRIVER: freedreno
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-c984"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
 
 # Status: https://lava.collabora.dev/scheduler/device_type/sc7180-trogdor-lazor-limozeen
 .lava-sc7180-trogdor-lazor-limozeen:arm64:
@@ -244,6 +251,9 @@
     KERNEL_IMAGE_TYPE: ""
     RUNNER_TAG: mesa-ci-x86-64-lava-sc7180-trogdor-lazor-limozeen
     VK_DRIVER: freedreno
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-c984"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
 
 # Status: https://lava.collabora.dev/scheduler/device_type/sm8350-hdk
 .lava-sm8350-hdk:arm64:
@@ -261,6 +271,9 @@
     KERNEL_IMAGE_TYPE: ""
     RUNNER_TAG: mesa-ci-x86-64-lava-sm8350-hdk
     VK_DRIVER: freedreno
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-c984"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
 
 
 .google-freedreno-test:
@@ -273,6 +286,9 @@
     PIGLIT_PLATFORM: mixed_glx_egl
     BM_CMDLINE: "ip=dhcp console=ttyMSM0,115200n8 $BM_KERNEL_EXTRA_ARGS root=/dev/nfs rw nfsrootdebug nfsroot=,tcp,nfsvers=4.2 init=/init $BM_KERNELARGS"
     FARM: google
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-c984"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
   script:
     - ./install/bare-metal/fastboot.sh
 
@@ -321,28 +337,6 @@
   tags:
     - google-freedreno-db820c
 
-# piglit and piglit_gl since it takes a bit under 20 minutes and has a lot of flakes, so
-# leave it as manual.  The shader_tests are in the main a530_gl suite.
-#
-# Disabled for now because something reliably takes out the board 19-20 minutes in,
-# and then it reboots and tries again until the job timeout.
-.a530_piglit:
-  extends:
-    - .baremetal-deqp-test
-    - .a530-test
-  parallel: 2
-  variables:
-    DEQP_SUITE: freedreno-a530-piglit
-    HWCI_START_WESTON: 1
-
-.a530_piglit_gl:
-  extends:
-    - .a530_piglit
-    - .google-freedreno-manual-rules
-  parallel: null
-  variables:
-    PIGLIT_PROFILES: quick_gl
-
 # 6 devices (2023-07-06)
 .a630-test:
   extends:
@@ -366,7 +360,6 @@
 # CI-tron
 
 .b2c-freedreno-vk-test:
-  stage: freedreno
   extends:
     - .b2c-arm64-test-vk
   variables:

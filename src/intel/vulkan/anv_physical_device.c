@@ -73,6 +73,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_bind_memory2                      = true,
       .KHR_buffer_device_address             = true,
       .KHR_calibrated_timestamps             = device->has_reg_timestamp,
+      .KHR_compute_shader_derivatives        = true,
       .KHR_copy_commands2                    = true,
       .KHR_cooperative_matrix                = anv_has_cooperative_matrix(device),
       .KHR_create_renderpass2                = true,
@@ -84,6 +85,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_draw_indirect_count               = true,
       .KHR_driver_properties                 = true,
       .KHR_dynamic_rendering                 = true,
+      .KHR_dynamic_rendering_local_read      = true,
       .KHR_external_fence                    = has_syncobj_wait,
       .KHR_external_fence_fd                 = has_syncobj_wait,
       .KHR_external_memory                   = true,
@@ -150,6 +152,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_shader_maximal_reconvergence      = true,
       .KHR_shader_non_semantic_info          = true,
       .KHR_shader_quad_control               = true,
+      .KHR_shader_relaxed_extended_instruction = true,
       .KHR_shader_subgroup_extended_types    = true,
       .KHR_shader_subgroup_rotate            = true,
       .KHR_shader_subgroup_uniform_control_flow = true,
@@ -172,6 +175,10 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_video_encode_queue                = device->video_encode_enabled,
       .KHR_video_encode_h264                 = VIDEO_CODEC_H264ENC && device->video_encode_enabled,
       .KHR_video_encode_h265                 = device->info.ver >= 12 && VIDEO_CODEC_H265ENC && device->video_encode_enabled,
+      .KHR_video_maintenance1                = (device->video_decode_enabled &&
+                                               (VIDEO_CODEC_H264DEC || VIDEO_CODEC_H265DEC)) ||
+                                               (device->video_encode_enabled &&
+                                               (VIDEO_CODEC_H264ENC || VIDEO_CODEC_H265ENC)),
       .KHR_vulkan_memory_model               = true,
       .KHR_workgroup_memory_explicit_layout  = true,
       .KHR_zero_initialize_workgroup_memory  = true,
@@ -187,6 +194,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_custom_border_color               = true,
       .EXT_depth_bias_control                = true,
       .EXT_depth_clamp_zero_one              = true,
+      .EXT_depth_clamp_control               = true,
       .EXT_depth_clip_control                = true,
       .EXT_depth_range_unrestricted          = device->info.ver >= 20,
       .EXT_depth_clip_enable                 = true,
@@ -207,6 +215,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_global_priority_query             = device->max_context_priority >=
                                                VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR,
       .EXT_graphics_pipeline_library         = !debug_get_bool_option("ANV_NO_GPL", false),
+      .EXT_host_image_copy                   = !device->emu_astc_ldr,
       .EXT_host_query_reset                  = true,
       .EXT_image_2d_view_of_3d               = true,
       /* Because of Xe2 PAT selected compression and the Vulkan spec
@@ -241,6 +250,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_pipeline_creation_cache_control   = true,
       .EXT_pipeline_creation_feedback        = true,
       .EXT_pipeline_library_group_handles    = rt_enabled,
+      .EXT_pipeline_protected_access         = device->has_protected_contexts,
       .EXT_pipeline_robustness               = true,
       .EXT_post_depth_coverage               = true,
       .EXT_primitives_generated_query        = true,
@@ -271,6 +281,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_transform_feedback                = true,
       .EXT_vertex_attribute_divisor          = true,
       .EXT_vertex_input_dynamic_state        = true,
+      .EXT_ycbcr_2plane_444_formats          = true,
       .EXT_ycbcr_image_arrays                = true,
       .AMD_buffer_marker                     = true,
       .AMD_texture_gather_bias_lod           = device->info.ver >= 20,
@@ -476,7 +487,7 @@ get_features(const struct anv_physical_device *pdevice,
       /* VK_EXT_image_sliced_view_of_3d */
       .imageSlicedViewOf3D = true,
 
-      /* VK_NV_compute_shader_derivatives */
+      /* VK_KHR_compute_shader_derivatives */
       .computeDerivativeGroupQuads = true,
       .computeDerivativeGroupLinear = true,
 
@@ -659,6 +670,9 @@ get_features(const struct anv_physical_device *pdevice,
       /* VK_EXT_ycbcr_image_arrays */
       .ycbcrImageArrays = true,
 
+      /* VK_EXT_ycbcr_2plane_444_formats */
+      .ycbcr2plane444Formats = true,
+
       /* VK_EXT_extended_dynamic_state */
       .extendedDynamicState = true,
 
@@ -710,6 +724,9 @@ get_features(const struct anv_physical_device *pdevice,
       /* VK_EXT_primitive_topology_list_restart */
       .primitiveTopologyListRestart = true,
       .primitiveTopologyPatchListRestart = true,
+
+      /* VK_EXT_depth_clamp_control */
+      .depthClampControl = true,
 
       /* VK_EXT_depth_clip_control */
       .depthClipControl = true,
@@ -787,6 +804,9 @@ get_features(const struct anv_physical_device *pdevice,
       .swapchainMaintenance1 = true,
 #endif
 
+      /* VK_KHR_video_maintenance1 */
+      .videoMaintenance1 = true,
+
       /* VK_EXT_image_compression_control */
       .imageCompressionControl = true,
 
@@ -804,6 +824,18 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_KHR_maintenance7 */
       .maintenance7 = true,
+
+      /* VK_KHR_shader_relaxed_extended_instruction */
+      .shaderRelaxedExtendedInstruction = true,
+
+      /* VK_KHR_dynamic_rendering_local_read */
+      .dynamicRenderingLocalRead = true,
+
+      /* VK_EXT_pipeline_protected_access */
+      .pipelineProtectedAccess = true,
+
+      /* VK_EXT_host_image_copy */
+      .hostImageCopy = true,
    };
 
    /* The new DOOM and Wolfenstein games require depthBounds without
@@ -1296,6 +1328,11 @@ get_properties(const struct anv_physical_device *pdevice,
       props->minAccelerationStructureScratchOffsetAlignment = 64;
    }
 
+   /* VK_KHR_compute_shader_derivatives */
+   {
+      props->meshAndTaskShaderDerivatives = pdevice->info.has_mesh_shading;
+   }
+
    /* VK_KHR_fragment_shading_rate */
    {
       props->primitiveFragmentShadingRateWithMultipleViewports =
@@ -1496,6 +1533,77 @@ get_properties(const struct anv_physical_device *pdevice,
    {
       props->graphicsPipelineLibraryFastLinking = true;
       props->graphicsPipelineLibraryIndependentInterpolationDecoration = true;
+   }
+
+   /* VK_EXT_host_image_copy */
+   {
+      static const VkImageLayout supported_layouts[] = {
+         VK_IMAGE_LAYOUT_GENERAL,
+         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR,
+         VK_IMAGE_LAYOUT_ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT,
+         VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR,
+      };
+
+      props->pCopySrcLayouts = (VkImageLayout *) supported_layouts;
+      props->copySrcLayoutCount = ARRAY_SIZE(supported_layouts);
+      props->pCopyDstLayouts = (VkImageLayout *) supported_layouts;
+      props->copyDstLayoutCount = ARRAY_SIZE(supported_layouts);
+
+      /* This UUID essentially tells you if you can share an optimially tiling
+       * image with another driver. Much of the tiling decisions are based on :
+       *
+       *    - device generation (different tilings based on generations)
+       *    - device workarounds
+       *    - driver build (as we implement workarounds or performance tunings,
+       *      the tiling decision changes)
+       *
+       * So we're using a hash of the verx10 field + driver_build_sha1.
+       *
+       * Unfortunately there is a HW issue on SKL GT4 that makes it use some
+       * different tilings sometimes (see isl_gfx7.c).
+       */
+      {
+         struct mesa_sha1 sha1_ctx;
+         uint8_t sha1[20];
+
+         _mesa_sha1_init(&sha1_ctx);
+         _mesa_sha1_update(&sha1_ctx, pdevice->driver_build_sha1,
+                           sizeof(pdevice->driver_build_sha1));
+         _mesa_sha1_update(&sha1_ctx, &pdevice->info.platform,
+                           sizeof(pdevice->info.platform));
+         if (pdevice->info.platform == INTEL_PLATFORM_SKL &&
+             pdevice->info.gt == 4) {
+            _mesa_sha1_update(&sha1_ctx, &pdevice->info.gt,
+                              sizeof(pdevice->info.gt));
+         }
+         _mesa_sha1_final(&sha1_ctx, sha1);
+
+         assert(ARRAY_SIZE(sha1) >= VK_UUID_SIZE);
+         memcpy(props->optimalTilingLayoutUUID, sha1, VK_UUID_SIZE);
+      }
+
+      /* System without ReBAR cannot map all memory types on the host and that
+       * affects the memory types an image can use for host memory copies.
+       *
+       * System with compressed memory types also cannot expose all image
+       * memory types for host image copies.
+       */
+      props->identicalMemoryTypeRequirements = pdevice->has_small_bar ||
+         pdevice->memory.compressed_mem_types != 0;
    }
 
    /* VK_EXT_legacy_vertex_attributes */
@@ -1877,6 +1985,7 @@ anv_physical_device_init_heaps(struct anv_physical_device *device, int fd)
                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
             continue;
 
+         assert(device->memory.type_count < ARRAY_SIZE(device->memory.types));
          struct anv_memory_type *new_type =
             &device->memory.types[device->memory.type_count++];
          *new_type = device->memory.types[i];
@@ -1919,6 +2028,7 @@ anv_physical_device_init_heaps(struct anv_physical_device *device, int fd)
       device->memory.dynamic_visible_mem_types |=
          BITFIELD_BIT(device->memory.type_count);
 
+      assert(device->memory.type_count < ARRAY_SIZE(device->memory.types));
       struct anv_memory_type *new_type =
          &device->memory.types[device->memory.type_count++];
       *new_type = device->memory.types[i];
@@ -2020,6 +2130,7 @@ anv_physical_device_free_disk_cache(struct anv_physical_device *device)
  *  * "g" is for graphics queues with no compute support
  *  * "c" is for compute queues with no graphics support
  *  * "v" is for video queues with no graphics support
+ *  * "b" is for copy (blitter) queues with no graphics support
  *
  * For example, ANV_QUEUE_OVERRIDE=gc=2,c=1 would override the number of
  * advertised queues to be 2 queues with graphics+compute support, and 1 queue
@@ -2034,12 +2145,13 @@ anv_physical_device_free_disk_cache(struct anv_physical_device *device)
  * number of graphics+compute queues to be 0.
  */
 static void
-anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_count)
+anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_count, int *blit_count)
 {
    int gc_override = -1;
    int g_override = -1;
    int c_override = -1;
    int v_override = -1;
+   int blit_override = -1;
    const char *env_ = os_get_option("ANV_QUEUE_OVERRIDE");
 
    if (env_ == NULL)
@@ -2057,6 +2169,8 @@ anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_cou
          c_override = strtol(next + 2, NULL, 0);
       } else if (strncmp(next, "v=", 2) == 0) {
          v_override = strtol(next + 2, NULL, 0);
+      } else if (strncmp(next, "b=", 2) == 0) {
+         blit_override = strtol(next + 2, NULL, 0);
       } else {
          mesa_logw("Ignoring unsupported ANV_QUEUE_OVERRIDE token: %s", next);
       }
@@ -2074,6 +2188,8 @@ anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_cou
       *c_count = c_override;
    if (v_override >= 0)
       *v_count = v_override;
+   if (blit_override >= 0)
+      *blit_count = blit_override;
 }
 
 static void
@@ -2093,25 +2209,36 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
          intel_engines_count(pdevice->engine_info, INTEL_ENGINE_CLASS_VIDEO);
       int g_count = 0;
       int c_count = 0;
+      /* Not only the Kernel needs to have vm_control, but it also needs to
+       * have a new enough GuC and the interface to tell us so. This is
+       * implemented in the common layer by is_guc_semaphore_functional() and
+       * results in devinfo->engine_class_supported_count being adjusted,
+       * which we read below.
+       */
       const bool kernel_supports_non_render_engines = pdevice->has_vm_control;
-      const bool sparse_supports_non_render_engines =
-         pdevice->sparse_type != ANV_SPARSE_TYPE_TRTT;
+      /* For now we're choosing to not expose non-render engines on i915.ko
+       * even when the Kernel allows it. We have data suggesting it's not an
+       * obvious win in terms of performance.
+       */
       const bool can_use_non_render_engines =
          kernel_supports_non_render_engines &&
-         sparse_supports_non_render_engines;
+         pdevice->info.kmd_type == INTEL_KMD_TYPE_XE;
 
       if (can_use_non_render_engines) {
          c_count = pdevice->info.engine_class_supported_count[INTEL_ENGINE_CLASS_COMPUTE];
       }
-      enum intel_engine_class compute_class =
-         c_count < 1 ? INTEL_ENGINE_CLASS_RENDER : INTEL_ENGINE_CLASS_COMPUTE;
 
       int blit_count = 0;
       if (pdevice->info.verx10 >= 125 && can_use_non_render_engines) {
          blit_count = pdevice->info.engine_class_supported_count[INTEL_ENGINE_CLASS_COPY];
       }
 
-      anv_override_engine_counts(&gc_count, &g_count, &c_count, &v_count);
+      anv_override_engine_counts(&gc_count, &g_count, &c_count, &v_count, &blit_count);
+
+      enum intel_engine_class compute_class =
+         pdevice->info.engine_class_supported_count[INTEL_ENGINE_CLASS_COMPUTE] &&
+         c_count >= 1 ? INTEL_ENGINE_CLASS_COMPUTE :
+                        INTEL_ENGINE_CLASS_RENDER;
 
       if (gc_count > 0) {
          pdevice->queue.families[family_count++] = (struct anv_queue_family) {
@@ -2122,6 +2249,7 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
                           protected_flag,
             .queueCount = gc_count,
             .engine_class = INTEL_ENGINE_CLASS_RENDER,
+            .supports_perf = true,
          };
       }
       if (g_count > 0) {
@@ -2238,17 +2366,22 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
       goto fail_fd;
    }
 
-   if (devinfo.ver == 20) {
-      mesa_logw("Vulkan not yet supported on %s", devinfo.name);
-   } else if (devinfo.ver > 12) {
-      result = vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-                         "Vulkan not yet supported on %s", devinfo.name);
-      goto fail_fd;
-   } else if (devinfo.ver < 9) {
+   if (devinfo.ver < 9) {
       /* Silently fail here, hasvk should pick up this device. */
       result = VK_ERROR_INCOMPATIBLE_DRIVER;
       goto fail_fd;
+   } else if (devinfo.probe_forced) {
+      /* If INTEL_FORCE_PROBE was used, then the user has opted-in for
+       * unsupported device support. No need to print a warning message.
+       */
+   } else if (devinfo.ver > 20) {
+      result = vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+                         "Vulkan not yet supported on %s", devinfo.name);
+      goto fail_fd;
    }
+
+   if (devinfo.ver == 20 && instance->disable_xe2_ccs)
+      intel_debug |= DEBUG_NO_CCS;
 
    /* Disable Wa_16013994831 on Gfx12.0 because we found other cases where we
     * need to always disable preemption :
@@ -2394,21 +2527,20 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
    device->uses_relocs = device->info.kmd_type != INTEL_KMD_TYPE_XE;
 
    /* While xe.ko can use both vm_bind and TR-TT, i915.ko only has TR-TT. */
-   if (device->info.kmd_type == INTEL_KMD_TYPE_XE) {
-      if (debug_get_bool_option("ANV_SPARSE_USE_TRTT", false))
-         device->sparse_type = ANV_SPARSE_TYPE_TRTT;
-      else
-         device->sparse_type = ANV_SPARSE_TYPE_VM_BIND;
-   } else {
-      if (device->info.ver >= 12 &&
-          device->has_exec_timeline &&
-          debug_get_bool_option("ANV_SPARSE", true)) {
-         device->sparse_type = ANV_SPARSE_TYPE_TRTT;
-      } else if (instance->has_fake_sparse) {
-         device->sparse_type = ANV_SPARSE_TYPE_FAKE;
+   if (debug_get_bool_option("ANV_SPARSE", true)) {
+      if (device->info.kmd_type == INTEL_KMD_TYPE_XE) {
+         if (debug_get_bool_option("ANV_SPARSE_USE_TRTT", false))
+            device->sparse_type = ANV_SPARSE_TYPE_TRTT;
+         else
+            device->sparse_type = ANV_SPARSE_TYPE_VM_BIND;
       } else {
-         device->sparse_type = ANV_SPARSE_TYPE_NOT_SUPPORTED;
+         if (device->info.ver >= 12 && device->has_exec_timeline)
+            device->sparse_type = ANV_SPARSE_TYPE_TRTT;
       }
+   }
+   if (device->sparse_type == ANV_SPARSE_TYPE_NOT_SUPPORTED) {
+      if (instance->has_fake_sparse)
+         device->sparse_type = ANV_SPARSE_TYPE_FAKE;
    }
 
    device->always_flush_cache = INTEL_DEBUG(DEBUG_STALL) ||
@@ -2480,6 +2612,9 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
       device->local_major = 0;
       device->local_minor = 0;
    }
+
+   device->has_small_bar = anv_physical_device_has_vram(device) &&
+                           device->vram_non_mappable.size != 0;
 
    get_device_extensions(device, &device->vk.supported_extensions);
    get_features(device, &device->vk.supported_features);

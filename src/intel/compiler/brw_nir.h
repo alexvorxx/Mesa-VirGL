@@ -137,6 +137,28 @@ brw_nir_ubo_surface_index_get_bti(nir_src src)
    return nir_src_as_uint(intrin->src[1]);
 }
 
+/* Returns true if a fragment shader needs at least one render target */
+static inline bool
+brw_nir_fs_needs_null_rt(const struct intel_device_info *devinfo,
+                         nir_shader *nir,
+                         bool multisample_fbo, bool alpha_to_coverage)
+{
+   assert(nir->info.stage == MESA_SHADER_FRAGMENT);
+
+   /* Null-RT bit in the render target write extended descriptor is only
+    * available on Gfx11+.
+    */
+   if (devinfo->ver < 11)
+      return true;
+
+   uint64_t relevant_outputs = 0;
+   if (multisample_fbo)
+      relevant_outputs |= BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK);
+
+   return (alpha_to_coverage ||
+           (nir->info.outputs_written & relevant_outputs) != 0);
+}
+
 void brw_preprocess_nir(const struct brw_compiler *compiler,
                         nir_shader *nir,
                         const struct brw_nir_compiler_opts *opts);
@@ -193,6 +215,8 @@ bool brw_nir_limit_trig_input_range_workaround(nir_shader *nir);
 
 bool brw_nir_lower_fsign(nir_shader *nir);
 
+bool brw_nir_opt_fsat(nir_shader *);
+
 void brw_nir_apply_key(nir_shader *nir,
                        const struct brw_compiler *compiler,
                        const struct brw_base_prog_key *key,
@@ -202,13 +226,14 @@ unsigned brw_nir_api_subgroup_size(const nir_shader *nir,
                                    unsigned hw_subgroup_size);
 
 enum brw_conditional_mod brw_cmod_for_nir_comparison(nir_op op);
-enum lsc_opcode lsc_aop_for_nir_intrinsic(const nir_intrinsic_instr *atomic);
+enum lsc_opcode lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin);
 enum brw_reg_type brw_type_for_nir_type(const struct intel_device_info *devinfo,
                                         nir_alu_type type);
 
 bool brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
                                   unsigned bit_size,
                                   unsigned num_components,
+                                  unsigned hole_size,
                                   nir_intrinsic_instr *low,
                                   nir_intrinsic_instr *high,
                                   void *data);
@@ -265,8 +290,7 @@ brw_nir_no_indirect_mask(const struct brw_compiler *compiler,
    return indirect_mask;
 }
 
-void
-brw_nir_printf(nir_builder *b, const char *fmt, ...);
+bool brw_nir_uses_inline_data(nir_shader *shader);
 
 #ifdef __cplusplus
 }

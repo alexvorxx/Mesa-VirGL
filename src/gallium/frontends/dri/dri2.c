@@ -104,14 +104,6 @@ dri_invalidate_drawable(__DRIdrawable *dPriv)
    p_atomic_inc(&drawable->base.stamp);
 }
 
-static const __DRI2flushExtension dri2FlushExtension = {
-    .base = { __DRI2_FLUSH, 4 },
-
-    .flush                = dri_flush_drawable,
-    .invalidate           = dri_invalidate_drawable,
-    .flush_with_flags     = dri_flush,
-};
-
 /**
  * Retrieve __DRIbuffer from the DRI loader.
  */
@@ -397,27 +389,6 @@ dri2_set_in_fence_fd(__DRIimage *img, int fd)
    sync_accumulate("dri", &img->in_fence_fd, fd);
 }
 
-static void
-handle_in_fence(struct dri_context *ctx, __DRIimage *img)
-{
-   struct pipe_context *pipe = ctx->st->pipe;
-   struct pipe_fence_handle *fence;
-   int fd = img->in_fence_fd;
-
-   if (fd == -1)
-      return;
-
-   validate_fence_fd(fd);
-
-   img->in_fence_fd = -1;
-
-   pipe->create_fence_fd(pipe, &fence, fd, PIPE_FD_TYPE_NATIVE_SYNC);
-   pipe->fence_server_sync(pipe, fence);
-   pipe->screen->fence_reference(pipe->screen, &fence, NULL);
-
-   close(fd);
-}
-
 /*
  * Backend functions for pipe_frontend_drawable.
  */
@@ -527,7 +498,7 @@ dri2_allocate_textures(struct dri_context *ctx,
          drawable->h = texture->height0;
 
          pipe_resource_reference(buf, texture);
-         handle_in_fence(ctx, images.front);
+         dri_image_fence_sync(ctx, images.front);
       }
 
       if (images.image_mask & __DRI_IMAGE_BUFFER_BACK) {
@@ -539,7 +510,7 @@ dri2_allocate_textures(struct dri_context *ctx,
          drawable->h = texture->height0;
 
          pipe_resource_reference(buf, texture);
-         handle_in_fence(ctx, images.back);
+         dri_image_fence_sync(ctx, images.back);
       }
 
       if (images.image_mask & __DRI_IMAGE_BUFFER_SHARED) {
@@ -551,7 +522,7 @@ dri2_allocate_textures(struct dri_context *ctx,
          drawable->h = texture->height0;
 
          pipe_resource_reference(buf, texture);
-         handle_in_fence(ctx, images.back);
+         dri_image_fence_sync(ctx, images.back);
 
          ctx->is_shared_buffer_bound = true;
       } else {
@@ -1685,8 +1656,11 @@ dri2_from_dma_bufs(__DRIscreen *screen,
    __DRIimage *img;
    const struct dri2_format_mapping *map = dri2_get_mapping_by_fourcc(fourcc);
 
-   if (!dri_screen(screen)->dmabuf_import)
+   if (!dri_screen(screen)->dmabuf_import) {
+      if (error)
+         *error = __DRI_IMAGE_ERROR_BAD_PARAMETER;
       return NULL;
+   }
 
    unsigned err = __DRI_IMAGE_ERROR_SUCCESS;
    /* Allow a NULL error arg since many callers don't care. */
@@ -1826,7 +1800,7 @@ dri2_blit_image(__DRIcontext *context, __DRIimage *dst, __DRIimage *src,
     */
    _mesa_glthread_finish(ctx->st->ctx);
 
-   handle_in_fence(ctx, dst);
+   dri_image_fence_sync(ctx, dst);
 
    memset(&blit, 0, sizeof(blit));
    blit.dst.resource = dst->texture;
@@ -1883,7 +1857,7 @@ dri2_map_image(__DRIcontext *context, __DRIimage *image,
     */
    _mesa_glthread_finish(ctx->st->ctx);
 
-   handle_in_fence(ctx, image);
+   dri_image_fence_sync(ctx, image);
 
    struct pipe_resource *resource = image->texture;
    while (plane--)
@@ -1926,76 +1900,6 @@ dri2_get_capabilities(__DRIscreen *_screen)
    return (screen->can_share_buffer ? __DRI_IMAGE_CAP_GLOBAL_NAMES : 0);
 }
 
-/* The extension is modified during runtime if DRI_PRIME is detected */
-static const __DRIimageExtension dri2ImageExtensionTempl = {
-    .base = { __DRI_IMAGE, 22 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri_create_image,
-    .queryImage                   = dri2_query_image,
-    .dupImage                     = dri2_dup_image,
-    .validateUsage                = dri2_validate_usage,
-    .createImageFromNames         = dri2_from_names,
-    .fromPlanar                   = dri2_from_planar,
-    .createImageFromTexture       = dri2_create_from_texture,
-    .createImageFromDmaBufs       = NULL,
-    .blitImage                    = dri2_blit_image,
-    .getCapabilities              = dri2_get_capabilities,
-    .mapImage                     = dri2_map_image,
-    .unmapImage                   = dri2_unmap_image,
-    .queryDmaBufFormats           = NULL,
-    .queryDmaBufModifiers         = NULL,
-    .queryDmaBufFormatModifierAttribs = NULL,
-    .queryCompressionRates        = NULL,
-    .queryCompressionModifiers    = NULL,
-};
-
-const __DRIimageExtension driVkImageExtension = {
-    .base = { __DRI_IMAGE, 20 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri_create_image,
-    .queryImage                   = dri2_query_image,
-    .dupImage                     = dri2_dup_image,
-    .validateUsage                = dri2_validate_usage,
-    .createImageFromNames         = dri2_from_names,
-    .fromPlanar                   = dri2_from_planar,
-    .createImageFromTexture       = dri2_create_from_texture,
-    .createImageFromDmaBufs       = dri2_from_dma_bufs,
-    .blitImage                    = dri2_blit_image,
-    .getCapabilities              = dri2_get_capabilities,
-    .mapImage                     = dri2_map_image,
-    .unmapImage                   = dri2_unmap_image,
-    .queryDmaBufFormats           = dri_query_dma_buf_formats,
-    .queryDmaBufModifiers         = dri_query_dma_buf_modifiers,
-    .queryDmaBufFormatModifierAttribs = dri2_query_dma_buf_format_modifier_attribs,
-};
-
-const __DRIimageExtension driVkImageExtensionSw = {
-    .base = { __DRI_IMAGE, 20 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri_create_image,
-    .queryImage                   = dri2_query_image,
-    .dupImage                     = dri2_dup_image,
-    .validateUsage                = dri2_validate_usage,
-    .createImageFromNames         = dri2_from_names,
-    .fromPlanar                   = dri2_from_planar,
-    .createImageFromTexture       = dri2_create_from_texture,
-    .createImageFromDmaBufs       = dri2_from_dma_bufs,
-    .blitImage                    = dri2_blit_image,
-    .getCapabilities              = dri2_get_capabilities,
-    .mapImage                     = dri2_map_image,
-    .unmapImage                   = dri2_unmap_image,
-};
-
-static const __DRIrobustnessExtension dri2Robustness = {
-   .base = { __DRI2_ROBUSTNESS, 1 }
-};
-
 int
 dri_interop_query_device_info(__DRIcontext *_ctx,
                                struct mesa_glinterop_device_info *out)
@@ -2019,18 +1923,11 @@ dri_interop_flush_objects(__DRIcontext *_ctx,
    return st_interop_flush_objects(dri_context(_ctx)->st, count, objects, out);
 }
 
-static const __DRI2interopExtension dri2InteropExtension = {
-   .base = { __DRI2_INTEROP, 2 },
-   .query_device_info = dri_interop_query_device_info,
-   .export_object = dri_interop_export_object,
-   .flush_objects = dri_interop_flush_objects
-};
-
 /**
  * \brief the DRI2bufferDamageExtension set_damage_region method
  */
-static void
-dri2_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects)
+void
+dri_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
    struct pipe_box *boxes = NULL;
@@ -2067,16 +1964,12 @@ dri2_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects)
    }
 }
 
-static const __DRI2bufferDamageExtension dri2BufferDamageExtensionTempl = {
-   .base = { __DRI2_BUFFER_DAMAGE, 1 },
-};
-
 /**
  * \brief the DRI2blobExtension set_cache_funcs method
  */
-static void
-set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
-                     __DRIblobCacheGet get)
+void
+dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
+                         __DRIblobCacheGet get)
 {
    struct dri_screen *screen = dri_screen(sPriv);
    struct pipe_screen *pscreen = screen->base.screen;
@@ -2092,113 +1985,17 @@ set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
    disk_cache_set_callbacks(cache, set, get);
 }
 
-static const __DRI2blobExtension driBlobExtension = {
-   .base = { __DRI2_BLOB, 1 },
-   .set_cache_funcs = set_blob_cache_funcs
-};
-
-static const __DRImutableRenderBufferDriverExtension driMutableRenderBufferExtension = {
-   .base = { __DRI_MUTABLE_RENDER_BUFFER_DRIVER, 1 },
-};
-
 /*
  * Backend function init_screen.
  */
 
-static const __DRIextension *dri_screen_extensions_base[] = {
-   &driTexBufferExtension.base,
-   &dri2FlushExtension.base,
-   &dri2GalliumConfigQueryExtension.base,
-   &dri2FenceExtension.base,
-   &dri2InteropExtension.base,
-   &driBlobExtension.base,
-   &driMutableRenderBufferExtension.base,
-   &dri2FlushControlExtension.base,
-};
-
-/**
- * Set up the DRI extension list for this screen based on its underlying
- * gallium screen's capabilities.
- */
-static void
-dri2_init_screen_extensions(struct dri_screen *screen,
-                            struct pipe_screen *pscreen,
-                            bool is_kms_screen)
+void
+dri2_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits)
 {
-   const __DRIextension **nExt;
-
-   STATIC_ASSERT(sizeof(screen->screen_extensions) >=
-                 sizeof(dri_screen_extensions_base));
-   memcpy(&screen->screen_extensions, dri_screen_extensions_base,
-          sizeof(dri_screen_extensions_base));
-   screen->extensions = screen->screen_extensions;
-
-   /* Point nExt at the end of the extension list */
-   nExt = &screen->screen_extensions[ARRAY_SIZE(dri_screen_extensions_base)];
-
-   screen->image_extension = dri2ImageExtensionTempl;
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_NATIVE_FENCE_FD)) {
-      screen->image_extension.setInFenceFd = dri2_set_in_fence_fd;
-   }
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT) {
-      screen->image_extension.createImageFromDmaBufs = dri2_from_dma_bufs;
-      screen->image_extension.queryDmaBufFormats =
-         dri_query_dma_buf_formats;
-      screen->image_extension.queryDmaBufModifiers =
-         dri_query_dma_buf_modifiers;
-      if (!is_kms_screen) {
-         screen->image_extension.queryDmaBufFormatModifierAttribs =
-            dri2_query_dma_buf_format_modifier_attribs;
-      }
-   }
-
-   if (pscreen->query_compression_rates &&
-       pscreen->query_compression_modifiers) {
-      screen->image_extension.queryCompressionRates =
-         dri2_query_compression_rates;
-      screen->image_extension.queryCompressionModifiers =
-         dri2_query_compression_modifiers;
-   }
-
-   *nExt++ = &screen->image_extension.base;
-
-   if (!is_kms_screen) {
-      screen->buffer_damage_extension = dri2BufferDamageExtensionTempl;
-      if (pscreen->set_damage_region)
-         screen->buffer_damage_extension.set_damage_region =
-            dri2_set_damage_region;
-      *nExt++ = &screen->buffer_damage_extension.base;
-   }
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY)) {
-      *nExt++ = &dri2Robustness.base;
-      screen->has_reset_status_query = true;
-   }
-
-   /* Ensure the extension list didn't overrun its buffer and is still
-    * NULL-terminated */
-   assert(nExt - screen->screen_extensions <=
-          ARRAY_SIZE(screen->screen_extensions) - 1);
-   assert(!*nExt);
-}
-
-static struct dri_drawable *
-dri2_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
-                     bool isPixmap, void *loaderPrivate)
-{
-   struct dri_drawable *drawable = dri_create_drawable(screen, visual, isPixmap,
-                                                       loaderPrivate);
-   if (!drawable)
-      return NULL;
-
    drawable->allocate_textures = dri2_allocate_textures;
    drawable->flush_frontbuffer = dri2_flush_frontbuffer;
    drawable->update_tex_buffer = dri2_update_tex_buffer;
    drawable->flush_swapbuffers = dri2_flush_swapbuffers;
-
-   return drawable;
 }
 
 /**
@@ -2206,47 +2003,20 @@ dri2_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
  *
  * Returns the struct gl_config supported by this driver.
  */
-static const __DRIconfig **
+struct pipe_screen *
 dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
-   const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
 
-   (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
+   screen->can_share_buffer = true;
+   screen->auto_fake_front = dri_with_format(screen);
 
 #ifdef HAVE_LIBDRM
    if (pipe_loader_drm_probe_fd(&screen->dev, screen->fd, false))
       pscreen = pipe_loader_create_screen(screen->dev, driver_name_is_inferred);
 #endif
 
-   if (!pscreen)
-       return NULL;
-
-   dri_init_options(screen);
-   screen->throttle = pscreen->get_param(pscreen, PIPE_CAP_THROTTLE);
-
-   dri2_init_screen_extensions(screen, pscreen, false);
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_PROTECTED_CONTEXT))
-      screen->has_protected_context = true;
-
-   configs = dri_init_screen(screen, pscreen);
-   if (!configs)
-      goto fail;
-
-   screen->can_share_buffer = true;
-   screen->auto_fake_front = dri_with_format(screen);
-
-   screen->create_drawable = dri2_create_drawable;
-   screen->allocate_buffer = dri2_allocate_buffer;
-   screen->release_buffer = dri2_release_buffer;
-
-   return configs;
-
-fail:
-   pipe_loader_release(&screen->dev, 1);
-
-   return NULL;
+   return pscreen;
 }
 
 /**
@@ -2254,41 +2024,19 @@ fail:
  *
  * Returns the struct gl_config supported by this driver.
  */
-static const __DRIconfig **
+struct pipe_screen *
 dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
-#if defined(HAVE_SWRAST)
-   const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
+   screen->can_share_buffer = false;
+   screen->auto_fake_front = dri_with_format(screen);
 
-#ifdef HAVE_DRISW_KMS
+#if defined(HAVE_DRISW_KMS) && defined(HAVE_SWRAST)
    if (pipe_loader_sw_probe_kms(&screen->dev, screen->fd))
       pscreen = pipe_loader_create_screen(screen->dev, driver_name_is_inferred);
 #endif
 
-   if (!pscreen)
-       goto fail;
-
-   dri_init_options(screen);
-   dri2_init_screen_extensions(screen, pscreen, true);
-
-   configs = dri_init_screen(screen, pscreen);
-   if (!configs)
-      goto fail;
-
-   screen->can_share_buffer = false;
-   screen->auto_fake_front = dri_with_format(screen);
-   screen->create_drawable = dri2_create_drawable;
-   screen->allocate_buffer = dri2_allocate_buffer;
-   screen->release_buffer = dri2_release_buffer;
-
-   return configs;
-
-fail:
-   dri_release_screen(screen);
-
-#endif // HAVE_SWRAST
-   return NULL;
+   return pscreen;
 }
 
 int
@@ -2300,41 +2048,4 @@ dri_query_compatible_render_only_device_fd(int kms_only_fd)
    return -1;
 #endif
 }
-
-static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
-   .base = { __DRI_MESA, 2 },
-   .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createContext = driCreateContextAttribs,
-   .initScreen = dri2_init_screen,
-   .queryCompatibleRenderOnlyDeviceFd = dri_query_compatible_render_only_device_fd,
-   .createNewScreen3 = driCreateNewScreen3,
-};
-
-/* This is the table of extensions that the loader will dlsym() for. */
-const __DRIextension *galliumdrm_driver_extensions[] = {
-    &driCoreExtension.base,
-    &mesaCoreExtension.base,
-    &driImageDriverExtension.base,
-    &driDRI2Extension.base,
-    &gallium_config_options.base,
-    NULL
-};
-
-static const struct __DRImesaCoreExtensionRec swkmsMesaCoreExtension = {
-   .base = { __DRI_MESA, 2 },
-   .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createContext = driCreateContextAttribs,
-   .initScreen = dri_swrast_kms_init_screen,
-   .createNewScreen3 = driCreateNewScreen3,
-};
-
-const __DRIextension *dri_swrast_kms_driver_extensions[] = {
-    &driCoreExtension.base,
-    &swkmsMesaCoreExtension.base,
-    &driImageDriverExtension.base,
-    &swkmsDRI2Extension.base,
-    &gallium_config_options.base,
-    NULL
-};
-
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

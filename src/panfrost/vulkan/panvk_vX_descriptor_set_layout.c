@@ -102,7 +102,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
       result = vk_create_sorted_bindings(pCreateInfo->pBindings,
                                          pCreateInfo->bindingCount, &bindings);
       if (result != VK_SUCCESS)
-         return vk_error(device, result);
+         return panvk_error(device, result);
 
       num_bindings = bindings[pCreateInfo->bindingCount - 1].binding + 1;
    }
@@ -116,7 +116,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
 
    if (!vk_descriptor_set_layout_multizalloc(&device->vk, &ma)) {
       free(bindings);
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
    }
 
    layout->flags = pCreateInfo->flags;

@@ -60,8 +60,8 @@ STATUS_COLORS = {
     "skipped": "",
 }
 
-COMPLETED_STATUSES = {"success", "failed"}
-RUNNING_STATUSES = {"created", "pending", "running"}
+COMPLETED_STATUSES = frozenset({"success", "failed"})
+RUNNING_STATUSES = frozenset({"created", "pending", "running"})
 
 
 def print_job_status(
@@ -114,8 +114,9 @@ def monitor_pipeline(
     project: gitlab.v4.objects.Project,
     pipeline: gitlab.v4.objects.ProjectPipeline,
     target_jobs_regex: re.Pattern,
+    include_stage_regex: re.Pattern,
+    exclude_stage_regex: re.Pattern,
     dependencies: set[str],
-    force_manual: bool,
     stress: int,
 ) -> tuple[Optional[int], Optional[int], Dict[str, Dict[int, Tuple[float, str, str]]]]:
     """Monitors pipeline and delegate canceling jobs"""
@@ -126,16 +127,16 @@ def monitor_pipeline(
     target_id: int = -1
     name_field_pad: int = len(max(dependencies, key=len))+2
     # In a running pipeline, we can skip following job traces that are in these statuses.
-    skip_follow_statuses = COMPLETED_STATUSES
-    if not force_manual:
-        # If the target job is marked as manual and we don't force it to run, it will be skipped.
-        skip_follow_statuses.add("manual")
+    skip_follow_statuses: frozenset[str] = (COMPLETED_STATUSES)
 
     # Pre-populate the stress status counter for already completed target jobs.
     if stress:
         # When stress test, it is necessary to collect this information before start.
         for job in pipeline.jobs.list(all=True, include_retried=True):
-            if target_jobs_regex.fullmatch(job.name) and job.status in COMPLETED_STATUSES:
+            if target_jobs_regex.fullmatch(job.name) and \
+               include_stage_regex.fullmatch(job.stage) and \
+               not exclude_stage_regex.fullmatch(job.stage) and \
+               job.status in COMPLETED_STATUSES:
                 stress_status_counter[job.name][job.status] += 1
                 execution_times[job.name][job.id] = (job_duration(job), job.status, job.web_url)
 
@@ -147,7 +148,6 @@ def monitor_pipeline(
         enable_job,
         project=project,
         pipeline=pipeline,
-        force_manual=force_manual,
         job_name_field_pad=name_field_pad,
         jobs_waiting=jobs_waiting,
     )
@@ -156,7 +156,9 @@ def monitor_pipeline(
         to_cancel = []
         jobs_waiting.clear()
         for job in sorted(pipeline.jobs.list(all=True), key=lambda j: j.name):
-            if target_jobs_regex.fullmatch(job.name):
+            if target_jobs_regex.fullmatch(job.name) and \
+               include_stage_regex.fullmatch(job.stage) and \
+               not exclude_stage_regex.fullmatch(job.stage):
                 target_id = job.id
                 target_status = job.status
 
@@ -258,7 +260,6 @@ def enable_job(
     pipeline: gitlab.v4.objects.ProjectPipeline,
     job: gitlab.v4.objects.ProjectPipelineJob,
     action_type: Literal["target", "dep", "retry"],
-    force_manual: bool,
     job_name_field_pad: int = 0,
     jobs_waiting: list[str] = [],
 ) -> gitlab.v4.objects.ProjectPipelineJob:
@@ -270,7 +271,6 @@ def enable_job(
 
     if (
         (job.status in COMPLETED_STATUSES and action_type != "retry")
-        or (job.status == "manual" and not force_manual)
         or job.status in {"skipped"} | RUNNING_STATUSES
     ):
         return job
@@ -358,8 +358,29 @@ def parse_args() -> argparse.Namespace:
         "--target",
         metavar="target-job",
         help="Target job regex. For multiple targets, pass multiple values, "
-             "eg. `--target foo bar`.",
+             "eg. `--target foo bar`. Only jobs in the target stage(s) "
+             "supplied, and their dependencies, will be considered.",
         required=True,
+        nargs=argparse.ONE_OR_MORE,
+    )
+    parser.add_argument(
+        "--include-stage",
+        metavar="include-stage",
+        help="Job stages to include when searching for target jobs. "
+             "For multiple targets, pass multiple values, eg. "
+             "`--include-stage foo bar`.",
+        default=[".*"],
+        nargs=argparse.ONE_OR_MORE,
+    )
+    parser.add_argument(
+        "--exclude-stage",
+        metavar="exclude-stage",
+        help="Job stages to exclude when searching for target jobs. "
+             "For multiple targets, pass multiple values, eg. "
+             "`--exclude-stage foo bar`. By default, performance and "
+             "post-merge jobs are excluded; pass --exclude-stage '' to "
+             "include them for consideration.",
+        default=["performance", ".*-postmerge"],
         nargs=argparse.ONE_OR_MORE,
     )
     parser.add_argument(
@@ -371,7 +392,8 @@ def parse_args() -> argparse.Namespace:
              f"otherwise it's read from {TOKEN_DIR / 'gitlab-token'}",
     )
     parser.add_argument(
-        "--force-manual", action="store_true", help="Force jobs marked as manual"
+        "--force-manual", action="store_true",
+        help="Deprecated argument; manual jobs are always force-enabled"
     )
     parser.add_argument(
         "--stress",
@@ -385,6 +407,11 @@ def parse_args() -> argparse.Namespace:
         "--project",
         default="mesa",
         help="GitLab project in the format <user>/<project> or just <project>",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Exit after printing target jobs and dependencies",
     )
 
     mutex_group1 = parser.add_mutually_exclusive_group()
@@ -436,6 +463,8 @@ def print_detected_jobs(
 def find_dependencies(
     token: str | None,
     target_jobs_regex: re.Pattern,
+    include_stage_regex: re.Pattern,
+    exclude_stage_regex: re.Pattern,
     project_path: str,
     iid: int
 ) -> set[str]:
@@ -464,7 +493,7 @@ def find_dependencies(
         gql_instance, {"projectPath": project_path.path_with_namespace, "iid": iid}
     )
 
-    target_dep_dag = filter_dag(dag, target_jobs_regex)
+    target_dep_dag = filter_dag(dag, target_jobs_regex, include_stage_regex, exclude_stage_regex)
     if not target_dep_dag:
         print(Fore.RED + "The job(s) were not found in the pipeline." + Fore.RESET)
         sys.exit(1)
@@ -582,14 +611,40 @@ def main() -> None:
 
         target_jobs_regex = re.compile(target)
 
+        include_stage = '|'.join(args.include_stage)
+        include_stage = include_stage.strip()
+
+        print("🞋 target from stages: " + Fore.BLUE + include_stage + Style.RESET_ALL)  # U+1F78B Round target
+
+        include_stage_regex = re.compile(include_stage)
+
+        exclude_stage = '|'.join(args.exclude_stage)
+        exclude_stage = exclude_stage.strip()
+
+        print("🞋 target excluding stages: " + Fore.BLUE + exclude_stage + Style.RESET_ALL)  # U+1F78B Round target
+
+        exclude_stage_regex = re.compile(exclude_stage)
+
         deps = find_dependencies(
             token=token,
             target_jobs_regex=target_jobs_regex,
+            include_stage_regex=include_stage_regex,
+            exclude_stage_regex=exclude_stage_regex,
             iid=pipe.iid,
             project_path=cur_project
         )
+
+        if args.dry_run:
+            sys.exit(0)
+
         target_job_id, ret, exec_t = monitor_pipeline(
-            cur_project, pipe, target_jobs_regex, deps, args.force_manual, args.stress
+            cur_project,
+            pipe,
+            target_jobs_regex,
+            include_stage_regex,
+            exclude_stage_regex,
+            deps,
+            args.stress
         )
 
         if target_job_id:

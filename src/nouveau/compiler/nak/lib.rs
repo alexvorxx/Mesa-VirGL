@@ -3,18 +3,14 @@
 
 mod api;
 mod assign_regs;
-mod bitset;
 mod builder;
 mod calc_instr_deps;
-mod cfg;
 mod from_nir;
 mod ir;
 mod legalize;
 mod liveness;
 mod lower_copy_swap;
 mod lower_par_copies;
-mod nir;
-mod nir_instr_printer;
 mod opt_bar_prop;
 mod opt_copy_prop;
 mod opt_crs;

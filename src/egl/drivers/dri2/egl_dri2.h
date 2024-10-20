@@ -41,7 +41,7 @@
 #include <xcb/xfixes.h>
 
 #include "loader_dri_helper.h"
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
 #include "loader_dri3_helper.h"
 #endif
 #endif
@@ -242,16 +242,6 @@ struct dri2_egl_display {
    __DRIscreen *dri_screen_display_gpu;
    bool own_dri_screen;
    const __DRIconfig **driver_configs;
-   const __DRI2flushExtension *flush;
-   const __DRI2flushControlExtension *flush_control;
-   const __DRItexBufferExtension *tex_buffer;
-   const __DRI2configQueryExtension *config;
-   const __DRI2fenceExtension *fence;
-   const __DRI2bufferDamageExtension *buffer_damage;
-   const __DRI2blobExtension *blob;
-   const __DRI2interopExtension *interop;
-   const __DRIconfigOptionsExtension *configOptions;
-   const __DRImutableRenderBufferDriverExtension *mutable_render_buffer;
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;
    /* fd of the GPU used for display. If the same GPU is used for display
@@ -268,7 +258,9 @@ struct dri2_egl_display {
    bool own_device;
    bool invalidate_available;
    bool kopper;
+   bool kopper_without_modifiers;
    bool swrast;
+   bool swrast_not_kms;
    int min_swap_interval;
    int max_swap_interval;
    int default_swap_interval;
@@ -279,16 +271,16 @@ struct dri2_egl_display {
    char *driver_name;
 
    const __DRIextension **loader_extensions;
-   const __DRIextension **driver_extensions;
 
    bool has_dmabuf_import;
-   bool has_modifiers;
+   bool has_dmabuf_export;
+   bool explicit_modifiers;
    bool multibuffers_available;
 #ifdef HAVE_X11_PLATFORM
    xcb_connection_t *conn;
    xcb_screen_t *screen;
    bool swap_available;
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
    struct loader_screen_resources screen_resources;
 #endif
 #endif
@@ -317,6 +309,7 @@ struct dri2_egl_display {
    /* gralloc vendor usage bit for front rendering */
    uint32_t front_rendering_usage;
    bool has_native_fence_fd;
+   bool pure_swrast;
 #endif
 };
 
@@ -472,16 +465,7 @@ void
 dri2_setup_swap_interval(_EGLDisplay *disp, int max_swap_interval);
 
 EGLBoolean
-dri2_load_driver_swrast(_EGLDisplay *disp);
-
-EGLBoolean
-dri2_load_driver_dri3(_EGLDisplay *disp);
-
-EGLBoolean
 dri2_create_screen(_EGLDisplay *disp);
-
-EGLBoolean
-dri2_setup_extensions(_EGLDisplay *disp);
 
 EGLBoolean
 dri2_setup_device(_EGLDisplay *disp, EGLBoolean software);

@@ -38,6 +38,12 @@ struct hk_addr_range {
    uint64_t range;
 };
 
+#define perf_debug_dev(dev, fmt, ...)                                          \
+   do {                                                                        \
+      if (dev->debug & AGX_DBG_PERF)                                           \
+         mesa_log(MESA_LOG_WARN, (MESA_LOG_TAG), (fmt), ##__VA_ARGS__);        \
+   } while (0)
+
 #define perf_debug(dev, fmt, ...)                                              \
    do {                                                                        \
       if (dev->dev.debug & AGX_DBG_PERF)                                       \

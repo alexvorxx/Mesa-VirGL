@@ -17,6 +17,7 @@
     paths:
       - results/
   rules:
+    - !reference [.common-rules, rules]
     - !reference [.never-post-merge-rules, rules]
 
 .formatting-check:
@@ -42,33 +43,31 @@ rustfmt:
     - rustfmt --version
     - rustfmt --verbose src/**/lib.rs
 
-python-test:
-  # Cancel job if a newer commit is pushed to the same branch
-  interruptible: true
-  stage: code-validation
+yaml-toml-shell-test:
   extends:
-    - .use-debian/x86_64_build
-  variables:
-    GIT_STRATEGY: fetch
-  timeout: 10m
+    - python-test
+    - .no-auto-retry  # this job can't be flaky
   script:
-    - cd bin/ci
-    - pip install --break-system-packages -r test/requirements.txt
-    - PYTHONPATH=. pytest -v
+    - echo "If your change looks right but this script rejects it, contact @eric (GitLab) / eric_engestrom (IRC)."
+    - uncollapsed_section_start tomllint "tomllint"
+    - python3 bin/toml_lint.py
+    - uncollapsed_section_switch yamllint "yamllint"
+    - .gitlab-ci/run-yamllint.sh
+    - uncollapsed_section_switch shellcheck "shellcheck"
+    - .gitlab-ci/run-shellcheck.sh
+    - section_end
   rules:
     - !reference [.disable-farm-mr-rules, rules]
     - !reference [.never-post-merge-rules, rules]
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "mesa" && $GITLAB_USER_LOGIN != "marge-bot"
-      when: on_success
+    - !reference [.no_scheduled_pipelines-rules, rules]
     - if: $GITLAB_USER_LOGIN == "marge-bot"
-      changes: &bin_ci_files
-        - .gitlab-ci.yml
-        - .gitlab-ci/**/*
-        - bin/ci/**/*
+      changes: &toml_lint_files
+        - .gitlab-ci/test/gitlab-ci.yml
+        - .gitlab-ci/**/*.sh
+        - bin/toml_lint.py
+        - src/**/ci/*.toml
       when: on_success
-    - changes: *bin_ci_files
+    - changes: *toml_lint_files
       when: manual
 
 .test-gl:
@@ -280,7 +279,7 @@ python-test:
     # boot2container initrd configuration parameters.
     B2C_KERNEL_URL: 'https://gitlab.freedesktop.org/gfx-ci/ci-tron/-/package_files/519/download'  # Linux 6.1
     B2C_INITRAMFS_URL: 'https://gitlab.freedesktop.org/mupuf/boot2container/-/releases/v0.9.10/downloads/initramfs.linux_amd64.cpio.xz'
-    B2C_JOB_SUCCESS_REGEX: 'hwci: mesa: pass\r$'
+    B2C_JOB_SUCCESS_REGEX: 'hwci: mesa: pass, exit_code: 0\r$'
     B2C_LOG_LEVEL: 6
     B2C_POWEROFF_DELAY: 15
     B2C_SESSION_END_REGEX: '^.*It''s now safe to turn off your computer\r$'

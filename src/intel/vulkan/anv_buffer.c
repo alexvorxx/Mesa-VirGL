@@ -53,7 +53,7 @@ static void
 anv_get_buffer_memory_requirements(struct anv_device *device,
                                    VkBufferCreateFlags flags,
                                    VkDeviceSize size,
-                                   VkBufferUsageFlags usage,
+                                   VkBufferUsageFlags2KHR usage,
                                    bool is_sparse,
                                    VkMemoryRequirements2* pMemoryRequirements)
 {
@@ -69,8 +69,8 @@ anv_get_buffer_memory_requirements(struct anv_device *device,
    uint32_t memory_types;
    if (flags & VK_BUFFER_CREATE_PROTECTED_BIT)
       memory_types = device->physical->memory.protected_mem_types;
-   else if (usage & (VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
-                     VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT))
+   else if (usage & (VK_BUFFER_USAGE_2_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
+                     VK_BUFFER_USAGE_2_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT))
       memory_types = device->physical->memory.dynamic_visible_mem_types;
    else
       memory_types = device->physical->memory.default_buffer_mem_types;
@@ -124,6 +124,15 @@ anv_get_buffer_memory_requirements(struct anv_device *device,
    }
 }
 
+static VkBufferUsageFlags2KHR
+get_buffer_usages(const VkBufferCreateInfo *create_info)
+{
+   const VkBufferUsageFlags2CreateInfoKHR *usage2_info =
+      vk_find_struct_const(create_info->pNext,
+                           BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR);
+   return usage2_info != NULL ? usage2_info->usage : create_info->usage;
+}
+
 void anv_GetDeviceBufferMemoryRequirements(
     VkDevice                                    _device,
     const VkDeviceBufferMemoryRequirements*     pInfo,
@@ -132,6 +141,7 @@ void anv_GetDeviceBufferMemoryRequirements(
    ANV_FROM_HANDLE(anv_device, device, _device);
    const bool is_sparse =
       pInfo->pCreateInfo->flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
+   VkBufferUsageFlags2KHR usages = get_buffer_usages(pInfo->pCreateInfo);
 
    if ((device->physical->sparse_type == ANV_SPARSE_TYPE_NOT_SUPPORTED) &&
        INTEL_DEBUG(DEBUG_SPARSE) &&
@@ -144,7 +154,7 @@ void anv_GetDeviceBufferMemoryRequirements(
    anv_get_buffer_memory_requirements(device,
                                       pInfo->pCreateInfo->flags,
                                       pInfo->pCreateInfo->size,
-                                      pInfo->pCreateInfo->usage,
+                                      usages,
                                       is_sparse,
                                       pMemoryRequirements);
 }
@@ -165,6 +175,16 @@ VkResult anv_CreateBuffer(
                              VK_BUFFER_CREATE_SPARSE_ALIASED_BIT))
       fprintf(stderr, "=== %s %s:%d flags:0x%08x\n", __func__, __FILE__,
               __LINE__, pCreateInfo->flags);
+
+   if ((pCreateInfo->flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT) &&
+       device->physical->sparse_type == ANV_SPARSE_TYPE_TRTT) {
+      VkBufferUsageFlags2KHR usages = get_buffer_usages(pCreateInfo);
+      if (usages & (VK_BUFFER_USAGE_2_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
+                    VK_BUFFER_USAGE_2_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT)) {
+         return vk_errorf(device, VK_ERROR_UNKNOWN,
+                          "Cannot support sparse descriptor buffers with TRTT.");
+      }
+   }
 
    /* Don't allow creating buffers bigger than our address space.  The real
     * issue here is that we may align up the buffer size and we don't want
@@ -201,6 +221,14 @@ VkResult anv_CreateBuffer(
                                  OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT);
          if (opaque_info)
             client_address = *((const uint64_t *)opaque_info->opaqueCaptureDescriptorData);
+      }
+
+      /* If this buffer will be used as a descriptor buffer, make sure we
+       * allocate it on the correct heap.
+       */
+      if (buffer->vk.usage & (VK_BUFFER_USAGE_2_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
+                              VK_BUFFER_USAGE_2_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT)) {
+         alloc_flags |= ANV_BO_ALLOC_DYNAMIC_VISIBLE_POOL;
       }
 
       VkResult result = anv_init_sparse_bindings(device, buffer->vk.size,

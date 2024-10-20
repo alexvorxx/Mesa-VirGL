@@ -12,6 +12,9 @@ use std::ptr::addr_of;
 use std::ptr::addr_of_mut;
 use std::sync::Once;
 
+/// Maximum size a pixel can be across all supported image formats.
+pub const MAX_PIXEL_SIZE_BYTES: u64 = 4 * 4;
+
 #[repr(C)]
 pub struct Platform {
     dispatch: &'static cl_icd_dispatch,
@@ -27,9 +30,12 @@ pub enum PerfDebugLevel {
 pub struct PlatformDebug {
     pub allow_invalid_spirv: bool,
     pub clc: bool,
+    pub max_grid_size: u64,
+    pub nir: bool,
+    pub no_variants: bool,
     pub perf: PerfDebugLevel,
     pub program: bool,
-    pub max_grid_size: u64,
+    pub reuse_context: bool,
     pub sync_every_event: bool,
     pub validate_spirv: bool,
 }
@@ -74,9 +80,12 @@ static mut PLATFORM: Platform = Platform {
 static mut PLATFORM_DBG: PlatformDebug = PlatformDebug {
     allow_invalid_spirv: false,
     clc: false,
+    max_grid_size: 0,
+    nir: false,
+    no_variants: false,
     perf: PerfDebugLevel::None,
     program: false,
-    max_grid_size: 0,
+    reuse_context: true,
     sync_every_event: false,
     validate_spirv: false,
 };
@@ -93,6 +102,9 @@ fn load_env() {
             match flag {
                 "allow_invalid_spirv" => debug.allow_invalid_spirv = true,
                 "clc" => debug.clc = true,
+                "nir" => debug.nir = true,
+                "no_reuse_context" => debug.reuse_context = false,
+                "no_variants" => debug.no_variants = true,
                 "perf" => debug.perf = PerfDebugLevel::Once,
                 "perfspam" => debug.perf = PerfDebugLevel::Spam,
                 "program" => debug.program = true,

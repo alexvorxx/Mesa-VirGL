@@ -6,7 +6,6 @@
  */
 #include "hk_image.h"
 #include "asahi/layout/layout.h"
-#include "asahi/lib/agx_formats.h"
 #include "drm-uapi/drm_fourcc.h"
 #include "util/bitscan.h"
 #include "util/format/u_format.h"
@@ -45,7 +44,7 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
       break;
    }
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = hk_format_to_pipe_format(vk_format);
    if (p_format == PIPE_FORMAT_NONE)
       return 0;
 
@@ -74,7 +73,7 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
       }
    }
 
-   if (agx_pixel_format[p_format].texturable) {
+   if (ail_pixel_format[p_format].texturable) {
       features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
       features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
 
@@ -90,7 +89,7 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
       }
    }
 
-   if (agx_pixel_format[p_format].renderable) {
+   if (ail_pixel_format[p_format].renderable) {
       /* For now, disable snorm rendering due to nir_lower_blend bugs.
        *
        * TODO: revisit.
@@ -219,6 +218,95 @@ vk_image_usage_to_format_features(VkImageUsageFlagBits usage_flag)
    default:
       return 0;
    }
+}
+
+static bool
+hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
+                unsigned width, unsigned height, unsigned samples,
+                VkImageCreateFlagBits flags, VkImageUsageFlagBits usage,
+                const void *pNext)
+{
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(format);
+
+   if (ycbcr_info) {
+      format = ycbcr_info->planes[plane].format;
+      width /= ycbcr_info->planes[plane].denominator_scales[0];
+      height /= ycbcr_info->planes[plane].denominator_scales[0];
+   } else if (format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+      format = (plane == 0) ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_S8_UINT;
+   }
+
+   /* Allow disabling compression for debugging */
+   if (dev->debug & AGX_DBG_NOCOMPRESS)
+      return false;
+
+   /* Image compression is not (yet?) supported with host image copies,
+    * although the vendor driver does support something similar if I recall.
+    * Compression is not supported in hardware for storage images or mutable
+    * formats in general.
+    *
+    * Feedback loops are problematic with compression. The GL driver bans them.
+    * Interestingly, the relevant CTS tests pass on G13G and G14C, but not on
+    * G13D. For now, conservatively ban compression with feedback loops.
+    */
+   if (usage &
+       (VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT | VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT)) {
+
+      perf_debug_dev(
+         dev, "No compression: incompatible usage -%s%s%s",
+         (usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) ? " host-transfer" : "",
+         (usage & VK_IMAGE_USAGE_STORAGE_BIT) ? " storage" : "",
+         (usage & VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT)
+            ? " feedback-loop"
+            : "");
+      return false;
+   }
+
+   enum pipe_format p_format = hk_format_to_pipe_format(format);
+
+   /* Check for format compatibility if mutability is enabled. */
+   if (flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) {
+      const struct VkImageFormatListCreateInfo *format_list =
+         (void *)vk_find_struct_const(pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
+
+      if (!format_list || format_list->viewFormatCount == 0)
+         return false;
+
+      for (unsigned i = 0; i < format_list->viewFormatCount; ++i) {
+         if (format_list->pViewFormats[i] == VK_FORMAT_UNDEFINED)
+            continue;
+
+         enum pipe_format view_format =
+            hk_format_to_pipe_format(format_list->pViewFormats[i]);
+
+         if (!ail_formats_compatible(p_format, view_format)) {
+            perf_debug_dev(dev, "No compression: incompatible image view");
+            return false;
+         }
+      }
+   }
+
+   if (!ail_can_compress(p_format, width, height, samples)) {
+      perf_debug_dev(dev, "No compression: invalid layout %s %ux%ux%u",
+                     util_format_short_name(p_format), width, height, samples);
+      return false;
+   }
+
+   return true;
+}
+
+static bool
+hk_can_compress_format(struct agx_device *dev, VkFormat format)
+{
+   /* Check compressability of a sufficiently large image of the same
+    * format, since we don't have dimensions here. This is lossy for
+    * small images, but that's ok.
+    *
+    * Likewise, we do not set flags as flags only disable compression.
+    */
+   return hk_can_compress(dev, format, 0, 64, 64, 1, 0, 0, NULL);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -490,9 +578,9 @@ hk_GetPhysicalDeviceImageFormatProperties2(
       case VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY_EXT: {
          VkHostImageCopyDevicePerformanceQueryEXT *hic_props = (void *)s;
 
-         /* TODO: Check compressability */
          hic_props->optimalDeviceAccess = hic_props->identicalMemoryLayout =
-            true;
+            !(pImageFormatInfo->tiling == VK_IMAGE_TILING_OPTIMAL &&
+              hk_can_compress_format(&pdev->dev, pImageFormatInfo->format));
          break;
       }
       default:
@@ -572,39 +660,25 @@ hk_GetPhysicalDeviceSparseImageFormatProperties2(
 }
 
 static enum ail_tiling
-hk_map_tiling(const VkImageCreateInfo *info, unsigned plane)
+hk_map_tiling(struct hk_device *dev, const VkImageCreateInfo *info,
+              unsigned plane, uint64_t modifier)
 {
    switch (info->tiling) {
    case VK_IMAGE_TILING_LINEAR:
       return AIL_TILING_LINEAR;
 
-   case VK_IMAGE_TILING_OPTIMAL: {
-      const struct vk_format_ycbcr_info *ycbcr_info =
-         vk_format_get_ycbcr_info(info->format);
-      VkFormat format =
-         ycbcr_info ? ycbcr_info->planes[plane].format : info->format;
-
-      if (format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-         format = (plane == 0) ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_S8_UINT;
+   case VK_IMAGE_TILING_OPTIMAL:
+      if (hk_can_compress(&dev->dev, info->format, plane, info->extent.width,
+                          info->extent.height, info->samples, info->flags,
+                          info->usage, info->pNext)) {
+         return AIL_TILING_TWIDDLED_COMPRESSED;
+      } else {
+         return AIL_TILING_TWIDDLED;
       }
 
-      const uint8_t width_scale =
-         ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[0] : 1;
-      const uint8_t height_scale =
-         ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[1] : 1;
-
-      if ((info->extent.width / width_scale) < 16 ||
-          (info->extent.height / height_scale) < 16)
-         return AIL_TILING_TWIDDLED;
-
-      // TODO: lots of bugs to fix first
-      // return AIL_TILING_TWIDDLED_COMPRESSED;
-      return AIL_TILING_TWIDDLED;
-   }
-
    case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
-      /* TODO */
-      return AIL_TILING_TWIDDLED;
+      return ail_drm_modifier_to_tiling(modifier);
+
    default:
       unreachable("invalid tiling");
    }
@@ -727,12 +801,13 @@ hk_image_init(struct hk_device *dev, struct hk_image *image,
       const uint8_t height_scale =
          ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[1] : 1;
 
-      enum ail_tiling tiling = hk_map_tiling(pCreateInfo, plane);
+      enum ail_tiling tiling =
+         hk_map_tiling(dev, pCreateInfo, plane, image->vk.drm_format_mod);
 
       image->planes[plane].layout = (struct ail_layout){
          .tiling = tiling,
          .mipmapped_z = pCreateInfo->imageType == VK_IMAGE_TYPE_3D,
-         .format = vk_format_to_pipe_format(format),
+         .format = hk_format_to_pipe_format(format),
 
          .width_px = pCreateInfo->extent.width / width_scale,
          .height_px = pCreateInfo->extent.height / height_scale,
@@ -1137,8 +1212,8 @@ hk_image_plane_bind(struct hk_device *dev, struct hk_image_plane *plane,
 #endif
       unreachable("todo");
    } else {
-      plane->addr = mem->bo->ptr.gpu + *offset_B;
-      plane->map = mem->bo->ptr.cpu + *offset_B;
+      plane->addr = mem->bo->va->addr + *offset_B;
+      plane->map = mem->bo->map + *offset_B;
       plane->rem = mem->bo->size - (*offset_B);
    }
 

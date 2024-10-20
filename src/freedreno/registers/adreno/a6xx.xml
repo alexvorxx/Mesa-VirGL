@@ -1146,6 +1146,20 @@ to upconvert to 32b float internally?
 	<value value="0x0"  name="R2D_RAW"/>
 </enum>
 
+<enum name="a6xx_tex_type">
+	<value name="A6XX_TEX_1D" value="0"/>
+	<value name="A6XX_TEX_2D" value="1"/>
+	<value name="A6XX_TEX_CUBE" value="2"/>
+	<value name="A6XX_TEX_3D" value="3"/>
+	<value name="A6XX_TEX_BUFFER" value="4"/>
+	<doc>
+		A special buffer type for usage as the source for buffer
+		to image copies with lower alignment requirements than
+		A6XX_TEX_2D, available since A7XX.
+	</doc>
+	<value name="A6XX_TEX_IMG_BUFFER" value="5"/>
+</enum>
+
 <enum name="a6xx_ztest_mode">
 	<doc>Allow early z-test and early-lrz (if applicable)</doc>
 	<value value="0x0" name="A6XX_EARLY_Z"/>
@@ -2358,7 +2372,12 @@ to upconvert to 32b float internally?
 		<reg32 offset="0x0" name="REG" type="a6x_cp_protect"/>
 	</array>
 
-	<reg32 offset="0x08A0" name="CP_CONTEXT_SWITCH_CNTL"/>
+	<reg32 offset="0x08A0" name="CP_CONTEXT_SWITCH_CNTL">
+		<bitfield name="STOP" pos="0" type="boolean"/>
+		<bitfield name="LEVEL" low="6" high="7"/>
+		<bitfield name="USES_GMEM" pos="8" type="boolean"/>
+		<bitfield name="SKIP_SAVE_RESTORE" pos="9" type="boolean"/>
+	</reg32>
 	<reg64 offset="0x08A1" name="CP_CONTEXT_SWITCH_SMMU_INFO"/>
 	<reg64 offset="0x08A3" name="CP_CONTEXT_SWITCH_PRIV_NON_SECURE_RESTORE_ADDR"/>
 	<reg64 offset="0x08A5" name="CP_CONTEXT_SWITCH_PRIV_SECURE_RESTORE_ADDR"/>
@@ -3830,10 +3849,16 @@ to upconvert to 32b float internally?
 	<reg32 offset="0x88e1" name="RB_BLIT_CLEAR_COLOR_DW2" usage="rp_blit"/>
 	<reg32 offset="0x88e2" name="RB_BLIT_CLEAR_COLOR_DW3" usage="rp_blit"/>
 
+	<enum name="a6xx_blit_event_type">
+		<value value="0x0" name="BLIT_EVENT_STORE"/>
+		<value value="0x1" name="BLIT_EVENT_STORE_AND_CLEAR"/>
+		<value value="0x2" name="BLIT_EVENT_CLEAR"/>
+		<value value="0x3" name="BLIT_EVENT_LOAD"/>
+	</enum>
+
 	<!-- seems somewhat similar to what we called RB_CLEAR_CNTL on a5xx: -->
 	<reg32 offset="0x88e3" name="RB_BLIT_INFO" usage="rp_blit">
-		<bitfield name="UNK0" pos="0" type="boolean"/> <!-- s8 stencil restore/clear?  But also color restore? -->
-		<bitfield name="GMEM" pos="1" type="boolean"/> <!-- set for restore and clear to gmem? -->
+		<bitfield name="TYPE" low="0" high="1" type="a6xx_blit_event_type"/>
 		<bitfield name="SAMPLE_0" pos="2" type="boolean"/> <!-- takes sample 0 instead of averaging -->
 		<bitfield name="DEPTH" pos="3" type="boolean"/> <!-- z16/z32/z24s8/x24x8 clear or resolve? -->
 		<doc>
@@ -3848,16 +3873,20 @@ to upconvert to 32b float internally?
 		<!-- set when this is the last resolve on a650+ -->
 		<bitfield name="LAST" low="8" high="9"/>
 		<!--
-			a618 GLES: color render target number being resolved for RM6_RESOLVE, 0x8 for depth, 0x9 for separate stencil.
-			a618 VK: 0x8 for depth RM6_RESOLVE, 0x9 for separate stencil, 0 otherwise.
+			a618 GLES: color render target number being resolved for CCU_RESOLVE, 0x8 for depth, 0x9 for separate stencil.
+			a618 VK: 0x8 for depth CCU_RESOLVE, 0x9 for separate stencil, 0 otherwise.
 
 			We believe this is related to concurrent resolves
 		 -->
 		<bitfield name="BUFFER_ID" low="12" high="15"/>
 	</reg32>
-	<reg32 offset="0x88e4" name="RB_UNKNOWN_88E4" variants="A7XX-" usage="rp_blit">
-		<!-- Value conditioned based on predicate, changed before blits -->
-		<bitfield name="UNK0" pos="0" type="boolean"/>
+
+	<enum name="a7xx_blit_clear_mode">
+		<value value="0x0" name="CLEAR_MODE_SYSMEM"/>
+		<value value="0x1" name="CLEAR_MODE_GMEM"/>
+	</enum>
+	<reg32 offset="0x88e4" name="RB_BLIT_CLEAR_MODE" variants="A7XX-" usage="rp_blit">
+			<bitfield name="CLEAR_MODE" pos="0" type="a7xx_blit_clear_mode"/>
 	</reg32>
 
 	<enum name="a6xx_ccu_cache_size">
@@ -5097,6 +5126,17 @@ to upconvert to 32b float internally?
 		<bitfield name="THREADSIZE_SCALAR" pos="10" type="boolean"/>
 	</reg32>
 
+	<enum name="a7xx_workitem_rast_order">
+		<value value="0x0" name="WORKITEMRASTORDER_LINEAR"/>
+		<doc>
+			This is a fixed tiling, with 4x4 invocation outer tiles
+			containing 2x2 invocation inner tiles. The intent is to
+			improve cache locality with textures and images accessed
+			using gl_LocalInvocationID.
+		</doc>
+		<value value="0x1" name="WORKITEMRASTORDER_TILED"/>
+	</enum>
+
 	<reg32 offset="0xa9c3" name="SP_CS_CNTL_1" variants="A7XX-" usage="cmd">
 		<!-- gl_LocalInvocationIndex -->
 		<bitfield name="LINEARLOCALIDREGID" low="0" high="7" type="a3xx_regid"/>
@@ -5105,10 +5145,8 @@ to upconvert to 32b float internally?
 		<!-- 1 thread per wave (would hang if THREAD128 is also set) -->
 		<bitfield name="THREADSIZE_SCALAR" pos="9" type="boolean"/>
 
-		<!-- Affects getone. If enabled, getone sometimes executed 1? less times
-		     than there are subgroups.
-		 -->
-		<bitfield name="UNK15" pos="15" type="boolean"/>
+		<doc>How invocations/fibers within a workgroup are tiled.</doc>
+		<bitfield name="WORKITEMRASTORDER" pos="15" type="a7xx_workitem_rast_order"/>
 	</reg32>
 
 	<!-- TODO: two 64kb aligned addresses at a9d0/a9d2 -->
@@ -5349,8 +5387,11 @@ to upconvert to 32b float internally?
 	</reg32>
 	<reg64 offset="0xb2c2" name="SP_PS_2D_SRC" type="address" align="16" variants="A7XX-" usage="rp_blit"/>
 	<reg32 offset="0xb2c4" name="SP_PS_2D_SRC_PITCH" variants="A7XX">
-		<bitfield name="UNK0" low="0" high="8"/>
-		<bitfield name="PITCH" low="9" high="23" shr="6" type="uint"/>
+		<!--
+		Bits from 3..9 must be zero unless 'TPL1_2D_SRC_CNTL::TYPE'
+		is A6XX_TEX_IMG_BUFFER, which allows for lower alignment.
+		 -->
+		<bitfield name="PITCH" low="3" high="23" type="uint"/>
 	</reg32>
 
 	<!-- planes for NV12, etc. (TODO: not tested) -->
@@ -5379,7 +5420,11 @@ to upconvert to 32b float internally?
 	<reg32 offset="0xb2cf" name="SP_PS_UNKNOWN_B4CF" low="0" high="30" variants="A7XX"/>
 	<reg32 offset="0xb2d0" name="SP_PS_UNKNOWN_B4D0" low="0" high="29" variants="A7XX"/>
 	<reg32 offset="0xb2d1" name="SP_PS_2D_WINDOW_OFFSET" type="a6xx_reg_xy" variants="A7XX"/>
-	<reg32 offset="0xb2d2" name="SP_PS_UNKNOWN_B2D2" variants="A7XX-" usage="rp_blit"/>
+	<reg32 offset="0xb2d2" name="TPL1_2D_SRC_CNTL" variants="A7XX-" usage="rp_blit">
+		<bitfield name="RAW_COPY" pos="0" type="boolean"/>
+		<bitfield name="START_OFFSET_TEXELS" low="16" high="21"/>
+		<bitfield name="TYPE" low="29" high="31" type="a6xx_tex_type"/>
+	</reg32>
 	<reg32 offset="0xab21" name="SP_WINDOW_OFFSET" type="a6xx_reg_xy" variants="A7XX-" usage="rp_blit"/>
 
 	<!-- always 0x100000 or 0x1000000? -->
@@ -5438,8 +5483,16 @@ to upconvert to 32b float internally?
 		<bitfield name="CONSTS_LOAD_DISABLE" pos="0" type="boolean"/>
 	</reg32>
 
-	<!-- Always 0 -->
-	<reg32 offset="0xa9ac" name="HLSQ_UNKNOWN_A9AC" variants="A7XX-" usage="cmd"/>
+	<reg32 offset="0xa9ac" name="SP_DITHER_CNTL" variants="A7XX-" usage="cmd">
+		<bitfield name="DITHER_MODE_MRT0" low="0"  high="1"  type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT1" low="2"  high="3"  type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT2" low="4"  high="5"  type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT3" low="6"  high="7"  type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT4" low="8"  high="9"  type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT5" low="10" high="11" type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT6" low="12" high="13" type="adreno_rb_dither_mode"/>
+		<bitfield name="DITHER_MODE_MRT7" low="14" high="15" type="adreno_rb_dither_mode"/>
+	</reg32>
 
 	<!-- Used in VK_KHR_fragment_shading_rate -->
 	<reg32 offset="0xa9ad" name="HLSQ_UNKNOWN_A9AD" variants="A7XX-" usage="cmd"/>
@@ -5611,10 +5664,20 @@ to upconvert to 32b float internally?
 		<bitfield name="LINEARLOCALIDREGID" low="0" high="7" type="a3xx_regid"/>
 		<!-- Must match SP_CS_CTRL -->
 		<bitfield name="THREADSIZE" pos="9" type="a6xx_threadsize"/>
-		<bitfield name="UNK11" pos="11" type="boolean"/>
-		<bitfield name="UNK22" pos="22" type="boolean"/>
-		<bitfield name="UNK26" pos="26" type="boolean"/>
-		<bitfield name="YALIGN" low="27" high="30" type="a7xx_cs_yalign"/>
+		<doc>
+			When this bit is enabled, the dispatch order interleaves
+			the z coordinate instead of launching all workgroups
+			with z=0, then all with z=1 and so on.
+		</doc>
+		<bitfield name="WORKGROUPRASTORDERZFIRSTEN" pos="11" type="boolean"/>
+		<doc>
+			When both fields are non-0 then the dispatcher uses
+			these tile sizes to launch workgroups in a tiled manner
+			when the x and y workgroup counts are
+			both more than 1.
+		</doc>
+		<bitfield name="WGTILEWIDTH" low="20" high="25"/>
+		<bitfield name="WGTILEHEIGHT" low="26" high="31"/>
 	</reg32>
 
 	<reg32 offset="0xa9df" name="HLSQ_CS_LOCAL_SIZE" variants="A7XX-" usage="cmd">
@@ -5875,13 +5938,6 @@ to upconvert to 32b float internally?
 		<value name="A6XX_TEX_W" value="3"/>
 		<value name="A6XX_TEX_ZERO" value="4"/>
 		<value name="A6XX_TEX_ONE" value="5"/>
-	</enum>
-	<enum name="a6xx_tex_type"> <!-- same as a4xx? -->
-		<value name="A6XX_TEX_1D" value="0"/>
-		<value name="A6XX_TEX_2D" value="1"/>
-		<value name="A6XX_TEX_CUBE" value="2"/>
-		<value name="A6XX_TEX_3D" value="3"/>
-		<value name="A6XX_TEX_BUFFER" value="4"/>
 	</enum>
 	<reg32 offset="0" name="0">
 		<bitfield name="TILE_MODE" low="0" high="1" type="a6xx_tile_mode"/>

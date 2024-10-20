@@ -21,7 +21,6 @@ endif
 
 loader_c_args = [
   '-DUSE_DRICONF',
-  '-DDEFAULT_DRIVER_DIR="@0@"'.format(dri_search_path),
 ]
 libloader = static_library(
   'loader',

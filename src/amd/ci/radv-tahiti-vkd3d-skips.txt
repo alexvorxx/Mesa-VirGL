@@ -1,4 +1,2 @@
 # These vkd3d-proton tests are skipped because they trigger GPU hangs.
-test_execute_indirect_state
-test_execute_indirect_state_predication
 test_undefined_descriptor_heap_mismatch_types

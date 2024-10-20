@@ -1370,7 +1370,10 @@ zink_screen_init_compiler(struct zink_screen *screen)
       .lower_uadd_sat = true,
       .lower_usub_sat = true,
       .lower_vector_cmp = true,
-      .lower_int64_options = 0,
+      .lower_int64_options =
+         nir_lower_bit_count64 |
+         nir_lower_find_lsb64 |
+         nir_lower_ufind_msb64,
       .lower_doubles_options = nir_lower_dround_even,
       .lower_uniforms_to_ubo = true,
       .has_fsub = true,
@@ -4893,11 +4896,8 @@ match_tex_dests(nir_shader *shader, struct zink_shader *zs, bool pre_mangle)
 }
 
 static bool
-split_bitfields_instr(nir_builder *b, nir_instr *in, void *data)
+split_bitfields_instr(nir_builder *b, nir_alu_instr *alu, void *data)
 {
-   if (in->type != nir_instr_type_alu)
-      return false;
-   nir_alu_instr *alu = nir_instr_as_alu(in);
    switch (alu->op) {
    case nir_op_ubitfield_extract:
    case nir_op_ibitfield_extract:
@@ -4909,7 +4909,7 @@ split_bitfields_instr(nir_builder *b, nir_instr *in, void *data)
    unsigned num_components = alu->def.num_components;
    if (num_components == 1)
       return false;
-   b->cursor = nir_before_instr(in);
+   b->cursor = nir_before_instr(&alu->instr);
    nir_def *dests[NIR_MAX_VEC_COMPONENTS];
    for (unsigned i = 0; i < num_components; i++) {
       if (alu->op == nir_op_bitfield_insert)
@@ -4930,8 +4930,8 @@ split_bitfields_instr(nir_builder *b, nir_instr *in, void *data)
                                           nir_channel(b, alu->src[2].src.ssa, alu->src[2].swizzle[i]));
    }
    nir_def *dest = nir_vec(b, dests, num_components);
-   nir_def_rewrite_uses_after(&alu->def, dest, in);
-   nir_instr_remove(in);
+   nir_def_rewrite_uses_after(&alu->def, dest, &alu->instr);
+   nir_instr_remove(&alu->instr);
    return true;
 }
 
@@ -4939,7 +4939,8 @@ split_bitfields_instr(nir_builder *b, nir_instr *in, void *data)
 static bool
 split_bitfields(nir_shader *shader)
 {
-   return nir_shader_instructions_pass(shader, split_bitfields_instr, nir_metadata_dominance, NULL);
+   return nir_shader_alu_pass(shader, split_bitfields_instr,
+                              nir_metadata_dominance, NULL);
 }
 
 static bool
@@ -5792,6 +5793,27 @@ lower_vec816_alu(const nir_instr *instr, const void *cb_data)
    return 4;
 }
 
+static unsigned
+zink_lower_bit_size_cb(const nir_instr *instr, void *data)
+{
+   switch (instr->type) {
+   case nir_instr_type_alu: {
+      nir_alu_instr *alu = nir_instr_as_alu(instr);
+      switch (alu->op) {
+      case nir_op_bit_count:
+      case nir_op_find_lsb:
+      case nir_op_ifind_msb:
+      case nir_op_ufind_msb:
+         return alu->src[0].src.ssa->bit_size == 32 ? 0 : 32;
+      default:
+         return 0;
+      }
+   }
+   default:
+      return 0;
+   }
+}
+
 static bool
 fix_vertex_input_locations_instr(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
@@ -6233,6 +6255,7 @@ zink_shader_init(struct zink_screen *screen, struct zink_shader *zs)
          .cb_data = screen,
       };
       NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &lower_mem_access_options);
+      NIR_PASS_V(nir, nir_lower_bit_size, zink_lower_bit_size_cb, NULL);
       NIR_PASS_V(nir, alias_scratch_memory);
       NIR_PASS_V(nir, nir_lower_alu_width, lower_vec816_alu, NULL);
       NIR_PASS_V(nir, nir_lower_alu_vec8_16_srcs);

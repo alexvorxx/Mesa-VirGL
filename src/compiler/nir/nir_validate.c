@@ -1145,6 +1145,9 @@ validate_instr(nir_instr *instr, validate_state *state)
       validate_jump_instr(nir_instr_as_jump(instr), state);
       break;
 
+   case nir_instr_type_debug_info:
+      break;
+
    default:
       validate_assert(state, !"Invalid ALU instruction type");
       break;

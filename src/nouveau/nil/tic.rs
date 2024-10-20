@@ -25,6 +25,7 @@ use crate::image::ImageDim;
 use crate::image::SampleLayout;
 use crate::image::View;
 use crate::image::ViewType;
+use crate::tiling::GOBType;
 
 macro_rules! set_enum {
     ($th:expr, $cls:ident, $field:ident, $enum:ident) => {
@@ -164,8 +165,14 @@ fn nil_rs_to_nv9097_multi_sample_count(sample_layout: SampleLayout) -> u32 {
     match sample_layout {
         SampleLayout::_1x1 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_1X1,
         SampleLayout::_2x1 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_2X1,
+        SampleLayout::_2x1D3d => {
+            cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_2X1_D3D
+        }
         SampleLayout::_2x2 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_2X2,
         SampleLayout::_4x2 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_4X2,
+        SampleLayout::_4x2D3d => {
+            cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_4X2_D3D
+        }
         SampleLayout::_4x4 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_4X4,
         SampleLayout::Invalid => panic!("Invalid sample layout"),
     }
@@ -175,8 +182,14 @@ fn nil_rs_to_nvb097_multi_sample_count(sample_layout: SampleLayout) -> u32 {
     match sample_layout {
         SampleLayout::_1x1 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_1X1,
         SampleLayout::_2x1 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_2X1,
+        SampleLayout::_2x1D3d => {
+            clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_2X1_D3D
+        }
         SampleLayout::_2x2 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_2X2,
         SampleLayout::_4x2 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_4X2,
+        SampleLayout::_4x2D3d => {
+            clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_4X2_D3D
+        }
         SampleLayout::_4x4 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_4X4,
         SampleLayout::Invalid => panic!("Invalid sample layout"),
     }
@@ -269,10 +282,10 @@ fn nv9097_fill_tic(
 
     let tiling = &image.levels[0].tiling;
 
-    if tiling.is_tiled {
+    if tiling.is_tiled() {
         set_enum!(th, cl9097, TEXHEADV2_MEMORY_LAYOUT, BLOCKLINEAR);
 
-        assert!(tiling.gob_height_is_8);
+        assert!(tiling.gob_type == GOBType::Fermi8);
         assert!(tiling.x_log2 == 0);
         set_enum!(th, cl9097, TEXHEADV2_GOBS_PER_BLOCK_WIDTH, ONE_GOB);
         th.set_field(cl9097::TEXHEADV2_GOBS_PER_BLOCK_HEIGHT, tiling.y_log2);
@@ -386,7 +399,7 @@ fn nvb097_fill_tic(
             u64::from(view.base_array_layer) * u64::from(image.array_stride_B);
     }
 
-    if tiling.is_tiled {
+    if tiling.is_tiled() {
         set_enum!(th, clb097, TEXHEAD_BL_HEADER_VERSION, SELECT_BLOCKLINEAR);
 
         let addr = BitView::new(&layer_address);
@@ -401,7 +414,7 @@ fn nvb097_fill_tic(
         );
         assert!(addr.get_bit_range_u64(48..64) == 0);
 
-        assert!(tiling.gob_height_is_8);
+        assert!(tiling.gob_type == GOBType::Fermi8);
 
         set_enum!(th, clb097, TEXHEAD_BL_GOBS_PER_BLOCK_WIDTH, ONE_GOB);
         th.set_field(clb097::TEXHEAD_BL_GOBS_PER_BLOCK_HEIGHT, tiling.y_log2);

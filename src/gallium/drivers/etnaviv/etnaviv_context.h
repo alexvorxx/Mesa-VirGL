@@ -143,6 +143,7 @@ struct etna_context {
       ETNA_DIRTY_TEXTURE_CACHES  = (1 << 18),
       ETNA_DIRTY_DERIVE_TS       = (1 << 19),
       ETNA_DIRTY_SCISSOR_CLIP    = (1 << 20),
+      ETNA_DIRTY_SHADER_CACHES   = (1 << 21),
    } dirty;
 
    struct slab_child_pool transfer_pool;

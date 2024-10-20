@@ -1333,29 +1333,28 @@ libagx_tess_quad(constant struct libagx_tess_args *p,
                                             tessFactor_Ueq1, tessFactor_Veq1};
    float insideTessFactor_f[QUAD_AXES] = {insideTessFactor_U,
                                           insideTessFactor_V};
-   int edge, axis;
    if (partitioning == LIBAGX_TESS_PARTITIONING_INTEGER) {
-      for (edge = 0; edge < QUAD_EDGES; edge++) {
+      for (int edge = 0; edge < QUAD_EDGES; edge++) {
          outsideTessFactorOdd[edge] = isOdd(outsideTessFactor_f[edge]);
       }
-      for (axis = 0; axis < QUAD_AXES; axis++) {
+      for (int axis = 0; axis < QUAD_AXES; axis++) {
          insideTessFactorOdd[axis] = isOdd(insideTessFactor_f[axis]) &&
                                      (1.0f != insideTessFactor_f[axis]);
       }
    } else {
       bool odd = (partitioning == LIBAGX_TESS_PARTITIONING_FRACTIONAL_ODD);
 
-      for (edge = 0; edge < QUAD_EDGES; edge++) {
+      for (int edge = 0; edge < QUAD_EDGES; edge++) {
          outsideTessFactorOdd[edge] = odd;
       }
       insideTessFactorOdd[U] = insideTessFactorOdd[V] = odd;
    }
 
    // Save fixed point TessFactors
-   for (edge = 0; edge < QUAD_EDGES; edge++) {
+   for (int edge = 0; edge < QUAD_EDGES; edge++) {
       outsideTessFactor[edge] = floatToFixed(outsideTessFactor_f[edge]);
    }
-   for (axis = 0; axis < QUAD_AXES; axis++) {
+   for (int axis = 0; axis < QUAD_AXES; axis++) {
       insideTessFactor[axis] = floatToFixed(insideTessFactor_f[axis]);
    }
 

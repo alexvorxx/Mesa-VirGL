@@ -8,9 +8,9 @@
 
 #include "hk_device.h"
 #include "hk_entrypoints.h"
+#include "hk_instance.h"
 #include "hk_physical_device.h"
 
-#include "vk_enum_to_str.h"
 #include "vk_format.h"
 #include "vk_sampler.h"
 
@@ -86,17 +86,20 @@ uses_border(const VkSamplerCreateInfo *info)
 }
 
 static enum agx_border_colour
-is_border_color_custom(VkBorderColor color)
+is_border_color_custom(VkBorderColor color, bool workaround_rgba4)
 {
-   /* TODO: for now, opaque black is treated as custom due to rgba4 swizzling
-    * issues, could be optimized though.
-    */
    switch (color) {
-   case VK_BORDER_COLOR_INT_OPAQUE_BLACK:
    case VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK:
+      /* We may need to workaround RGBA4 UNORM issues with opaque black. This
+       * only affects float opaque black, there are no pure integer RGBA4
+       * formats to worry about.
+       */
+      return workaround_rgba4;
+
    case VK_BORDER_COLOR_INT_CUSTOM_EXT:
    case VK_BORDER_COLOR_FLOAT_CUSTOM_EXT:
       return true;
+
    default:
       return false;
    }
@@ -104,28 +107,36 @@ is_border_color_custom(VkBorderColor color)
 
 /* Translate an American VkBorderColor into a Canadian agx_border_colour */
 static enum agx_border_colour
-translate_border_color(VkBorderColor color, bool custom_to_1)
+translate_border_color(VkBorderColor color, bool custom_to_1,
+                       bool workaround_rgba4)
 {
+   if (is_border_color_custom(color, workaround_rgba4)) {
+      return custom_to_1 ? AGX_BORDER_COLOUR_OPAQUE_WHITE
+                         : AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
+   }
+
    switch (color) {
    case VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK:
    case VK_BORDER_COLOR_INT_TRANSPARENT_BLACK:
       return AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
+
+   case VK_BORDER_COLOR_INT_OPAQUE_BLACK:
+   case VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK:
+      return AGX_BORDER_COLOUR_OPAQUE_BLACK;
 
    case VK_BORDER_COLOR_INT_OPAQUE_WHITE:
    case VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE:
       return AGX_BORDER_COLOUR_OPAQUE_WHITE;
 
    default:
-      assert(is_border_color_custom(color));
-      return custom_to_1 ? AGX_BORDER_COLOUR_OPAQUE_WHITE
-                         : AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
+      unreachable("invalid");
    }
 }
 
 static void
 pack_sampler(const struct hk_physical_device *pdev,
              const struct VkSamplerCreateInfo *info, bool custom_to_1,
-             struct agx_sampler_packed *out)
+             bool workaround_rgba4, struct agx_sampler_packed *out)
 {
    agx_pack(out, SAMPLER, cfg) {
       cfg.minimum_lod = info->minLod;
@@ -154,8 +165,8 @@ pack_sampler(const struct hk_physical_device *pdev,
       }
 
       if (uses_border(info)) {
-         cfg.border_colour =
-            translate_border_color(info->borderColor, custom_to_1);
+         cfg.border_colour = translate_border_color(
+            info->borderColor, custom_to_1, workaround_rgba4);
       }
    }
 }
@@ -167,6 +178,7 @@ hk_CreateSampler(VkDevice device,
 {
    VK_FROM_HANDLE(hk_device, dev, device);
    struct hk_physical_device *pdev = hk_device_physical(dev);
+   struct hk_instance *instance = (struct hk_instance *)pdev->vk.instance;
    struct hk_sampler *sampler;
    VkResult result;
 
@@ -174,8 +186,36 @@ hk_CreateSampler(VkDevice device,
    if (!sampler)
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   bool workaround_rgba4 = instance->workaround_rgba4;
+   bool custom_border =
+      uses_border(info) &&
+      is_border_color_custom(info->borderColor, workaround_rgba4);
+
+   /* Sanity check the noborder setting. There's no way to recover from it being
+    * wrong but at least we can make noise to lint for errors in the driconf.
+    */
+   if (HK_PERF(dev, NOBORDER) && custom_border) {
+      fprintf(stderr, "custom border colour used, but emulation is disabled\n");
+      fprintf(stderr, "border %u\n", info->borderColor);
+      fprintf(stderr, "rgba4 workaround: %u\n", workaround_rgba4);
+      fprintf(stderr, "unnorm %X\n", info->unnormalizedCoordinates);
+      fprintf(stderr, "compare %X\n", info->compareEnable);
+      fprintf(stderr, "value: %X, %X, %X, %X\n",
+              sampler->vk.border_color_value.uint32[0],
+              sampler->vk.border_color_value.uint32[1],
+              sampler->vk.border_color_value.uint32[2],
+              sampler->vk.border_color_value.uint32[3]);
+      fprintf(stderr, "wraps: %X, %X, %X\n", info->addressModeU,
+              info->addressModeV, info->addressModeW);
+
+      /* Blow up debug builds so we can fix the driconf. Allow the rare
+       * misrendering on release builds.
+       */
+      assert(0);
+   }
+
    struct agx_sampler_packed samp;
-   pack_sampler(pdev, info, true, &samp);
+   pack_sampler(pdev, info, true, workaround_rgba4, &samp);
 
    /* LOD bias passed in the descriptor set */
    sampler->lod_bias_fp16 = _mesa_float_to_half(info->mipLodBias);
@@ -210,7 +250,7 @@ hk_CreateSampler(VkDevice device,
          plane2_info.magFilter = chroma_filter;
          plane2_info.minFilter = chroma_filter;
 
-         pack_sampler(pdev, &plane2_info, false, &samp);
+         pack_sampler(pdev, &plane2_info, false, workaround_rgba4, &samp);
          result = hk_sampler_heap_add(
             dev, samp, &sampler->planes[sampler->plane_count].hw);
 
@@ -222,11 +262,11 @@ hk_CreateSampler(VkDevice device,
 
          sampler->plane_count++;
       }
-   } else if (uses_border(info)) {
+   } else if (custom_border) {
       /* If the sampler uses custom border colours, we need both clamp-to-1
        * and clamp-to-0 variants. We treat these as planes.
        */
-      pack_sampler(pdev, info, false, &samp);
+      pack_sampler(pdev, info, false, workaround_rgba4, &samp);
       result = hk_sampler_heap_add(dev, samp,
                                    &sampler->planes[sampler->plane_count].hw);
 

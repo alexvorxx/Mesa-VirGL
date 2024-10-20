@@ -1290,6 +1290,11 @@ SPDX-License-Identifier: MIT
 	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
 </bitset>
 
+<bitset name="clamp0_max" extends="#instruction-alu-src0-src1">
+	<pattern low="0" high="5">110110</pattern> <!-- OPC -->
+	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
+
 <bitset name="iaddsat" extends="#instruction-alu-src0-src2">
 	<pattern low="0" high="5">111011</pattern> <!-- OPC -->
 	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
@@ -1448,6 +1453,11 @@ SPDX-License-Identifier: MIT
 	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
 </bitset>
 
+<bitset name="conv" extends="#instruction-alu-src0-src1">
+	<pattern low="0" high="5">110010</pattern> <!-- OPC -->
+	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
+
 <bitset name="dp2" extends="#instruction-alu-src0-src1">
 	<pattern low="0" high="5">110011</pattern> <!-- OPC -->
 	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
@@ -1465,6 +1475,11 @@ SPDX-License-Identifier: MIT
 
 <bitset name="norm_dp4" extends="#instruction-alu-src0">
 	<pattern low="0" high="5">110110</pattern> <!-- OPC -->
+	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
+
+<bitset name="img_load" extends="#instruction-load">
+	<pattern low="0" high="5">111001</pattern> <!-- OPC -->
 	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
 </bitset>
 

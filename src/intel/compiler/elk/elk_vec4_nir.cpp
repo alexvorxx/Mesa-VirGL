@@ -1397,14 +1397,6 @@ vec4_visitor::nir_emit_alu(nir_alu_instr *instr)
       inst = emit_minmax(ELK_CONDITIONAL_GE, dst, op[0], op[1]);
       break;
 
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-   case nir_op_fddx_fine:
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-   case nir_op_fddy_fine:
-      unreachable("derivatives are not valid in vertex shaders");
-
    case nir_op_ilt32:
    case nir_op_ult32:
    case nir_op_ige32:

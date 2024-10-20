@@ -356,7 +356,7 @@ SOFTWARE.
 		LoaD Private
 	</doc>
 	<display>
-		{SY}{JP}{NAME}.{TYPE} {DST}, p[{SRC}{OFF}], {SIZE}
+		{SY}{JP}{NAME}.{TYPE} {TYPE_HALF}{DST}, p[{SRC}{OFF}], {SIZE}
 	</display>
 	<pattern low="54" high="58">00010</pattern>  <!-- OPC -->
 </bitset>
@@ -1322,7 +1322,55 @@ SOFTWARE.
 	<pattern low="52" high="53">11</pattern>
 </bitset>
 
+<enum name="#cat6-shfl-mode">
+	<value val="1" display="xor"/>
+	<value val="2" display="up"/>
+	<value val="3" display="down"/>
+	<value val="6" display="rup"/>
+	<value val="7" display="rdown"/>
+</enum>
 
+<bitset name="shfl" extends="#instruction-cat6-a3xx">
+	<doc>
+		Subgroup shuffle/rotate operations.
+
+		shfl.xor, shfl.up, shfl.down are like Vulkan subgroupShuffleXor,
+		subgroupShuffleUp, subgroupShuffleDown except that the mask/delta
+		has to be dynamically uniform.
+
+		shfl.rdown is Vulkan subgroupRotate. shfl.rup is like subgroupRotate
+		with a negative delta.
+
+		NOTE: SRC2 is always a full register, regardless of TYPE. The blob
+		disassembles it as a half register when TYPE is u16 though. We don't
+		copy this mistake here.
+	</doc>
+
+	<gen min="600"/>
+
+	<display>
+		{SY}{JP}{NAME}.{MODE}.{TYPE} {TYPE_HALF}{DST}, {TYPE_HALF}{SRC1}, {SRC2}
+	</display>
+
+	<pattern low="0"  high="0">0</pattern>
+	<field   low="1"  high="8"  name="SRC1" type="#reg-gpr"/>
+	<pattern low="9"  high="22">00000000000000</pattern>
+	<field   low="23" high="23" name="SRC2_IM" type="bool"/>
+	<field   low="24" high="31" name="SRC2" type="#cat6-src">
+		<param name="SRC2_IM" as="SRC_IM"/>
+	</field>
+	<field   low="32" high="39" name="DST" type="#reg-gpr"/>
+	<pattern low="40" high="44">xxxxx</pattern>
+	<field   low="45" high="47" name="MODE" type="#cat6-shfl-mode"/>
+	<pattern low="48" high="48">x</pattern>
+	<pattern low="52" high="53">10</pattern>
+	<pattern low="54" high="58">11011</pattern>  <!-- OPC -->
+
+	<encode>
+		<map name="MODE">src->cat6.shfl_mode</map>
+		<map name="SRC2_IM">!!(src->srcs[1]->flags &amp; IR3_REG_IMMED)</map>
+	</encode>
+</bitset>
 
 <expr name="#cat6-d">
 	{D_MINUS_ONE} + 1

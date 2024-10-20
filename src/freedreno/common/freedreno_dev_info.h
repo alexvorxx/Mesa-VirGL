@@ -1,24 +1,6 @@
 /*
  * Copyright © 2020 Valve Corporation
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  */
 
@@ -52,6 +34,14 @@ struct fd_dev_info {
    uint32_t cs_shared_mem_size;
 
    int wave_granularity;
+
+   /* These are fallback values that should match what drm/msm programs, for
+    * kernels that don't support returning them. Newer devices should not set
+    * them and just use the value from the kernel.
+    */
+   uint32_t highest_bank_bit;
+   uint32_t ubwc_swizzle;
+   uint32_t macrotile_mode;
 
    /* Information for private memory calculations */
    uint32_t fibers_per_sp;
@@ -112,6 +102,11 @@ struct fd_dev_info {
       bool depth_bounds_require_depth_test_quirk;
 
       bool has_tex_filter_cubic;
+
+      /* The blob driver does not support SEPARATE_RECONSTRUCTION_FILTER_BIT
+       * before a6xx_gen3.  It still sets CHROMA_LINEAR bit according to
+       * chromaFilter, but the bit has no effect before a6xx_gen3.
+       */
       bool has_separate_chroma_filter;
 
       bool has_sample_locations;
@@ -256,13 +251,6 @@ struct fd_dev_info {
        */
       bool ubwc_unorm_snorm_int_compatible;
 
-      /* Blob doesn't use hw binning with GS on all a6xx and a7xx, however
-       * in Turnip it worked without issues until a750. On a750 there are CTS
-       * failures when e.g. dEQP-VK.subgroups.arithmetic.framebuffer.* in
-       * parallel with "forcebin". It is exacerbated by using "syncdraw".
-       */
-      bool no_gs_hw_binning_quirk;
-
       /* Having zero consts in one FS may corrupt consts in follow up FSs,
        * on such GPUs blob never has zero consts in FS. The mechanism of
        * corruption is unknown.
@@ -290,6 +278,25 @@ struct fd_dev_info {
        * R8G8B8A8_UNORM in the mutable formats list.
        */
       bool ubwc_all_formats_compatible;
+
+      bool has_compliant_dp4acc;
+
+      /* Whether a single clear blit could be used for both sysmem and gmem.*/
+      bool has_generic_clear;
+
+      /* Whether r8g8 UBWC fast-clear work correctly. */
+      bool r8g8_faulty_fast_clear_quirk;
+
+      /* a750 has a bug where writing and then reading a UBWC-compressed IBO
+       * requires flushing UCHE. This is reproducible in many CTS tests, for
+       * example dEQP-VK.image.load_store.with_format.2d.*.
+       */
+      bool ubwc_coherency_quirk;
+
+      /* Whether CP_ALWAYS_ON_COUNTER only resets on device loss rather than
+       * on every suspend/resume.
+       */
+      bool has_persistent_counter;
    } a7xx;
 };
 

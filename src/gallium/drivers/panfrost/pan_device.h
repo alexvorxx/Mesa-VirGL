@@ -35,11 +35,12 @@
 #include "util/bitset.h"
 #include "util/list.h"
 #include "util/sparse_array.h"
+#include "util/timespec.h"
 #include "util/u_dynarray.h"
 
 #include "panfrost/util/pan_ir.h"
 #include "pan_blend.h"
-#include "pan_blitter.h"
+#include "pan_fb_preload.h"
 #include "pan_indirect_dispatch.h"
 #include "pan_pool.h"
 #include "pan_props.h"
@@ -151,7 +152,7 @@ struct panfrost_device {
       struct list_head buckets[NR_BO_CACHE_BUCKETS];
    } bo_cache;
 
-   struct pan_blitter_cache blitter;
+   struct pan_fb_preload_cache fb_preload_cache;
    struct pan_blend_shader_cache blend_shaders;
    struct pan_indirect_dispatch_meta indirect_dispatch;
 
@@ -213,7 +214,7 @@ void panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev);
 void panfrost_close_device(struct panfrost_device *dev);
 
 bool panfrost_supports_compressed_format(struct panfrost_device *dev,
-                                         unsigned fmt);
+                                         unsigned texfeat_bit);
 
 static inline struct panfrost_bo *
 pan_lookup_bo(struct panfrost_device *dev, uint32_t gem_handle)
@@ -225,6 +226,12 @@ static inline bool
 pan_is_bifrost(const struct panfrost_device *dev)
 {
    return dev->arch >= 6 && dev->arch <= 7;
+}
+
+static inline uint64_t
+pan_gpu_time_to_ns(struct panfrost_device *dev, uint64_t gpu_time)
+{
+   return (gpu_time * NSEC_PER_SEC) / dev->kmod.props.timestamp_frequency;
 }
 
 #if defined(__cplusplus)

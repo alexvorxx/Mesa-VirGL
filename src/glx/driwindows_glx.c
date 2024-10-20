@@ -44,7 +44,6 @@ struct driwindows_screen
 {
    struct glx_screen base;
    __DRIscreen *driScreen;
-   __GLXDRIscreen vtable;
    int event_base;
    Bool copySubBuffer;
 };
@@ -335,16 +334,6 @@ driwindowsCopySubBuffer(__GLXDRIdrawable * pdraw,
    windows_copy_subbuffer(pdp->windowsDrawable, x, y, width, height);
 }
 
-static void
-driwindowsDestroyScreen(struct glx_screen *base)
-{
-   struct driwindows_screen *psc = (struct driwindows_screen *) base;
-
-   /* Free the direct rendering per screen data */
-   psc->driScreen = NULL;
-   free(psc);
-}
-
 static const struct glx_screen_vtable driwindows_screen_vtable = {
    .create_context         = driwindows_create_context,
    .create_context_attribs = driwindows_create_context_attribs,
@@ -516,9 +505,7 @@ driwindowsCreateScreen(int screen, struct glx_display *priv, bool driver_name_is
    psc->base.visuals = visuals;
 
    psc->base.vtable = &driwindows_screen_vtable;
-   psp = &psc->vtable;
-   psc->base.driScreen = psp;
-   psp->destroyScreen = driwindowsDestroyScreen;
+   psp = &psc->base.driScreen;
    psp->createDrawable = driwindowsCreateDrawable;
    psp->swapBuffers = driwindowsSwapBuffers;
 

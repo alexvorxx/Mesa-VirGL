@@ -129,6 +129,7 @@ function_parameter_decoration_cb(struct vtn_builder *b, struct vtn_value *val,
    case SpvDecorationRelaxedPrecision:
    case SpvDecorationRestrict:
    case SpvDecorationRestrictPointer:
+   case SpvDecorationVolatile:
       break;
 
    default:
@@ -148,7 +149,7 @@ vtn_ssa_value_load_function_param(struct vtn_builder *b,
    if (glsl_type_is_vector_or_scalar(value->type)) {
       /* if the parameter is passed by value, we need to create a local copy if it's a pointer */
       if (info->by_value && type && type->base_type == vtn_base_type_pointer) {
-         struct vtn_type *pointee_type = type->deref;
+         struct vtn_type *pointee_type = type->pointed;
 
          nir_variable *copy =
             nir_local_variable_create(b->nb.impl, pointee_type->type, NULL);

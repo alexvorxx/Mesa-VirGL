@@ -296,7 +296,7 @@ device_probe_device(_EGLDisplay *disp)
       dri2_dpy->driver_name = strdup("kms_swrast");
    }
 
-   if (!dri2_load_driver_dri3(disp))
+   if (!dri2_load_driver(disp))
       goto err_load;
 
    dri2_dpy->loader_extensions = image_loader_extensions;
@@ -324,7 +324,7 @@ device_probe_device_sw(_EGLDisplay *disp)
       return false;
 
    /* HACK: should be driver_swrast_null */
-   if (!dri2_load_driver_swrast(disp)) {
+   if (!dri2_load_driver(disp)) {
       free(dri2_dpy->driver_name);
       dri2_dpy->driver_name = NULL;
       return false;
@@ -361,11 +361,6 @@ dri2_initialize_device(_EGLDisplay *disp)
 
    if (!dri2_create_screen(disp)) {
       err = "DRI2: failed to create screen";
-      goto cleanup;
-   }
-
-   if (!dri2_setup_extensions(disp)) {
-      err = "DRI2: failed to find required DRI extensions";
       goto cleanup;
    }
 

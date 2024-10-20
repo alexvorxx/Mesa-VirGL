@@ -412,6 +412,7 @@ sr[0-9]+ 	{ yylval.integer = atoi(yytext + 2); return STATEREG; }
 "I@"[1-7]	{ yylval.integer = atoi(yytext + 2); return REG_DIST_INT; }
 "L@"[1-7]	{ yylval.integer = atoi(yytext + 2); return REG_DIST_LONG; }
 "A@"[1-7]	{ yylval.integer = atoi(yytext + 2); return REG_DIST_ALL; }
+"M@"[1-7]	{ yylval.integer = atoi(yytext + 2); return REG_DIST_MATH; }
 
 "$"[0-9]*	{ yylval.integer = atoi(yytext + 1); return SBID_ALLOC; }
 "$"[0-9]*".src"	{ yylval.integer = atoi(yytext + 1); return SBID_WAIT_SRC; }

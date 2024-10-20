@@ -8,10 +8,12 @@
 #include <stdbool.h>
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/layout/layout.h"
+#include "shaders/compression.h"
+#include "agx_device.h"
 #include "agx_pack.h"
 #include "agx_ppp.h"
 
-#define AGX_MAX_OCCLUSION_QUERIES (65536)
+#define AGX_MAX_OCCLUSION_QUERIES (32768)
 #define AGX_MAX_VIEWPORTS         (16)
 
 #define agx_push(ptr, T, cfg)                                                  \
@@ -44,6 +46,21 @@ agx_translate_sampler_state_count(unsigned count, bool extended)
          return AGX_SAMPLER_STATES_12_COMPACT;
       else
          return AGX_SAMPLER_STATES_16_COMPACT;
+   }
+}
+
+static void
+agx_pack_txf_sampler(struct agx_sampler_packed *out)
+{
+   agx_pack(out, SAMPLER, cfg) {
+      /* Allow mipmapping. This is respected by txf, weirdly. */
+      cfg.mip_filter = AGX_MIP_FILTER_NEAREST;
+
+      /* Out-of-bounds reads must return 0 */
+      cfg.wrap_s = AGX_WRAP_CLAMP_TO_BORDER;
+      cfg.wrap_t = AGX_WRAP_CLAMP_TO_BORDER;
+      cfg.wrap_r = AGX_WRAP_CLAMP_TO_BORDER;
+      cfg.border_colour = AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
    }
 }
 
@@ -235,3 +252,35 @@ agx_calculate_vbo_clamp(uint64_t vbuf, uint64_t sink, enum pipe_format format,
       return 0;
    }
 }
+
+static struct agx_device_key
+agx_gather_device_key(struct agx_device *dev)
+{
+   return (struct agx_device_key){
+      .needs_g13x_coherency = (dev->params.gpu_generation == 13 &&
+                               dev->params.num_clusters_total > 1) ||
+                              dev->params.num_dies > 1,
+      .soft_fault = agx_has_soft_fault(dev),
+   };
+}
+
+static void
+agx_fill_decompress_push(struct libagx_decompress_push *push,
+                         struct ail_layout *layout, unsigned layer,
+                         unsigned level, uint64_t ptr)
+{
+   *push = (struct libagx_decompress_push){
+      .tile_uncompressed = ail_tile_mode_uncompressed(layout->format),
+      .metadata = ptr + layout->metadata_offset_B +
+                  layout->level_offsets_compressed_B[level] +
+                  (layer * layout->compression_layer_stride_B),
+      .metadata_layer_stride_tl = layout->compression_layer_stride_B / 8,
+      .metadata_width_tl = ail_metadata_width_tl(layout, level),
+      .metadata_height_tl = ail_metadata_height_tl(layout, level),
+   };
+}
+
+struct agx_border_packed;
+
+void agx_pack_border(struct agx_border_packed *out, const uint32_t in[4],
+                     enum pipe_format format);

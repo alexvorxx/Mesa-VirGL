@@ -41,7 +41,10 @@
 #include "main/glconfig.h"
 #include "main/menums.h"
 #include "util/xmlconfig.h"
+#include "pipe/p_defines.h"
 #include <stdbool.h>
+
+struct pipe_screen;
 
 struct dri_screen;
 
@@ -51,15 +54,12 @@ struct __DRIconfigRec {
     struct gl_config modes;
 };
 
-/**
- * Extensions.
- */
-extern const __DRIcoreExtension driCoreExtension;
-extern const __DRIswrastExtension driSWRastExtension;
-extern const __DRIdri2Extension driDRI2Extension;
-extern const __DRIdri2Extension swkmsDRI2Extension;
-extern const __DRI2flushControlExtension dri2FlushControlExtension;
-extern const __DRI2configQueryExtension dri2GalliumConfigQueryExtension;
+enum dri_screen_type {
+   DRI_SCREEN_DRI3,
+   DRI_SCREEN_KOPPER,
+   DRI_SCREEN_SWRAST,
+   DRI_SCREEN_KMS_SWRAST,
+};
 
 /**
  * Description of the attributes used to create a config.
@@ -106,8 +106,9 @@ struct __DriverContextConfig {
 PUBLIC __DRIscreen *
 driCreateNewScreen3(int scrn, int fd,
                     const __DRIextension **loader_extensions,
-                    const __DRIextension **driver_extensions,
-                    const __DRIconfig ***driver_configs, bool driver_name_is_inferred, void *data);
+                    enum dri_screen_type type,
+                    const __DRIconfig ***driver_configs, bool driver_name_is_inferred,
+                    bool has_multibuffer, void *data);
 PUBLIC __DRIcontext *
 driCreateContextAttribs(__DRIscreen *psp, int api,
                         const __DRIconfig *config,
@@ -122,10 +123,10 @@ driImageFormatToSizedInternalGLFormat(uint32_t image_format);
 PUBLIC unsigned int
 driGetAPIMask(__DRIscreen *screen);
 PUBLIC __DRIdrawable *
-driCreateNewDrawable(__DRIscreen *psp, const __DRIconfig *config, void *data);
+dri_create_drawable(__DRIscreen *psp, const __DRIconfig *config,
+                    bool isPixmap, void *loaderPrivate);
 extern const __DRIimageDriverExtension driImageDriverExtension;
 PUBLIC void driDestroyScreen(__DRIscreen *psp);
-PUBLIC const __DRIextension **driGetExtensions(__DRIscreen *psp);
 PUBLIC int
 driGetConfigAttrib(const __DRIconfig *config, unsigned int attrib, unsigned int *value);
 PUBLIC int
@@ -305,4 +306,34 @@ PUBLIC bool
 dri2_query_compression_modifiers(__DRIscreen *_screen, uint32_t fourcc,
                                  enum __DRIFixedRateCompression rate, int max,
                                  uint64_t *modifiers, int *count);
+
+PUBLIC void
+dri_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects);
+
+PUBLIC unsigned
+dri_fence_get_caps(__DRIscreen *_screen);
+PUBLIC void *
+dri_create_fence(__DRIcontext *_ctx);
+PUBLIC void *
+dri_create_fence_fd(__DRIcontext *_ctx, int fd);
+PUBLIC int
+dri_get_fence_fd(__DRIscreen *_screen, void *_fence);
+PUBLIC void *
+dri_get_fence_from_cl_event(__DRIscreen *_screen, intptr_t cl_event);
+PUBLIC void
+dri_destroy_fence(__DRIscreen *_screen, void *_fence);
+PUBLIC GLboolean
+dri_client_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags,
+                      uint64_t timeout);
+PUBLIC void
+dri_server_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags);
+
+PUBLIC void
+dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
+                         __DRIblobCacheGet get);
+
+PUBLIC struct pipe_screen *
+dri_get_pipe_screen(__DRIscreen *driScreen);
+PUBLIC int
+dri_get_screen_param(__DRIscreen *driScreen, enum pipe_cap param);
 #endif /* _DRI_UTIL_H_ */

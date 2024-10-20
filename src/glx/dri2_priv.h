@@ -42,24 +42,12 @@ extern "C" {
 struct dri2_screen {
    struct glx_screen base;
 
-   __DRIscreen *driScreen;
-   __GLXDRIscreen vtable;
-
    const __DRIconfig **driver_configs;
 
-   char *driverName;
    int fd;
 
    int show_fps_interval;
 };
-
-_X_HIDDEN int
-dri2_query_renderer_integer(struct glx_screen *base, int attribute,
-                            unsigned int *value);
-
-_X_HIDDEN int
-dri2_query_renderer_string(struct glx_screen *base, int attribute,
-                           const char **value);
 
 #ifdef __cplusplus
 }

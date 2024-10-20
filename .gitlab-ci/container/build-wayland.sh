@@ -1,10 +1,7 @@
-#!/bin/bash
-
 #!/usr/bin/env bash
-
 # shellcheck disable=SC2086 # we want word splitting
 
-set -ex
+set -uex
 
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
@@ -21,11 +18,7 @@ export WAYLAND_PROTOCOLS_VERSION="1.34"
 git clone https://gitlab.freedesktop.org/wayland/wayland
 cd wayland
 git checkout "$LIBWAYLAND_VERSION"
-
-meson -Ddocumentation=false -Ddtd_validation=false -Dlibraries=true _build $EXTRA_MESON_ARGS
-ninja -C _build install
-
-meson setup -Ddocumentation=false -Ddtd_validation=false -Dlibraries=true _build $EXTRA_MESON_ARGS
+meson setup -Ddocumentation=false -Ddtd_validation=false -Dlibraries=true _build ${EXTRA_MESON_ARGS:-}
 meson install -C _build
 cd ..
 rm -rf wayland
@@ -33,12 +26,8 @@ rm -rf wayland
 git clone https://gitlab.freedesktop.org/wayland/wayland-protocols
 cd wayland-protocols
 git checkout "$WAYLAND_PROTOCOLS_VERSION"
-
-meson _build $EXTRA_MESON_ARGS
-ninja -C _build install
-
-meson setup _build $EXTRA_MESON_ARGS
+meson setup _build ${EXTRA_MESON_ARGS:-}
 meson install -C _build
-
 cd ..
 rm -rf wayland-protocols
+

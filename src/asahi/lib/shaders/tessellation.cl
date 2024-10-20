@@ -62,8 +62,8 @@ libagx_tcs_out_address(constant struct libagx_tess_args *p, uint patch_id,
    uint stride =
       libagx_tcs_out_stride(nr_patch_out, out_patch_size, vtx_out_mask);
 
-   uint offs = libagx_tcs_out_offs(vtx_id, location, nr_patch_out,
-                                   out_patch_size, vtx_out_mask);
+   uint offs =
+      libagx_tcs_out_offs(vtx_id, location, nr_patch_out, vtx_out_mask);
 
    return (uintptr_t)(p->tcs_buffer) + (patch_id * stride) + offs;
 }

@@ -200,4 +200,15 @@ if with_tests
     ),
     suite : ['intel'],
   )
+  test(
+    'isl_surf_get_image_range_B_tile',
+    executable(
+      'isl_surf_get_image_range_B_tile_test',
+      'tests/isl_surf_get_image_range_B_tile_test.c',
+      dependencies : [dep_m, idep_mesautil, idep_intel_dev],
+      link_with:  libisl,
+      include_directories : [inc_include, inc_src, inc_intel],
+    ),
+    suite : ['intel'],
+  )
 endif

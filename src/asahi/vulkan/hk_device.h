@@ -8,6 +8,7 @@
 #pragma once
 
 #include "asahi/lib/agx_device.h"
+#include "util/simple_mtx.h"
 #include "agx_bg_eot.h"
 #include "agx_pack.h"
 #include "agx_scratch.h"
@@ -102,10 +103,23 @@ struct hk_device {
 
    struct {
       struct agx_scratch vs, fs, cs;
+      simple_mtx_t lock;
    } scratch;
+
+   uint32_t perftest;
 };
 
 VK_DEFINE_HANDLE_CASTS(hk_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
+
+enum hk_perftest {
+   HK_PERF_NOTESS = BITFIELD_BIT(0),
+   HK_PERF_NOBORDER = BITFIELD_BIT(1),
+   HK_PERF_NOBARRIER = BITFIELD_BIT(2),
+   HK_PERF_BATCH = BITFIELD_BIT(3),
+   HK_PERF_NOROBUST = BITFIELD_BIT(4),
+};
+
+#define HK_PERF(dev, flag) unlikely((dev)->perftest &HK_PERF_##flag)
 
 static inline struct hk_physical_device *
 hk_device_physical(struct hk_device *dev)
@@ -121,3 +135,27 @@ VkResult hk_sampler_heap_add(struct hk_device *dev,
                              struct hk_rc_sampler **out);
 
 void hk_sampler_heap_remove(struct hk_device *dev, struct hk_rc_sampler *rc);
+
+static inline struct agx_scratch *
+hk_device_scratch_locked(struct hk_device *dev, enum pipe_shader_type stage)
+{
+   simple_mtx_assert_locked(&dev->scratch.lock);
+
+   switch (stage) {
+   case PIPE_SHADER_FRAGMENT:
+      return &dev->scratch.fs;
+   case PIPE_SHADER_VERTEX:
+      return &dev->scratch.vs;
+   default:
+      return &dev->scratch.cs;
+   }
+}
+
+static inline void
+hk_device_alloc_scratch(struct hk_device *dev, enum pipe_shader_type stage,
+                        unsigned size)
+{
+   simple_mtx_lock(&dev->scratch.lock);
+   agx_scratch_alloc(hk_device_scratch_locked(dev, stage), size, 0);
+   simple_mtx_unlock(&dev->scratch.lock);
+}

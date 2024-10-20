@@ -387,6 +387,8 @@ void ac_get_task_info(const struct radeon_info *info,
 
 uint32_t ac_memory_ops_per_clock(uint32_t vram_type);
 
+uint32_t ac_gfx103_get_cu_mask_ps(const struct radeon_info *info);
+
 #ifdef __cplusplus
 }
 #endif

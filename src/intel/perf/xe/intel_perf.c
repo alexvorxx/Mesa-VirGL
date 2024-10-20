@@ -10,7 +10,7 @@
 
 #include "perf/intel_perf.h"
 #include "intel_perf_common.h"
-#include "intel/common/i915/intel_gem.h"
+#include "intel/common/intel_gem.h"
 
 #include "drm-uapi/xe_drm.h"
 

@@ -22,27 +22,30 @@ using namespace brw;
 static fs_inst *
 brw_emit_single_fb_write(fs_visitor &s, const fs_builder &bld,
                          brw_reg color0, brw_reg color1,
-                         brw_reg src0_alpha, unsigned components)
+                         brw_reg src0_alpha, unsigned components,
+                         bool null_rt)
 {
    assert(s.stage == MESA_SHADER_FRAGMENT);
    struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
 
    /* Hand over gl_FragDepth or the payload depth. */
    const brw_reg dst_depth = fetch_payload_reg(bld, s.fs_payload().dest_depth_reg);
-   brw_reg src_depth, src_stencil;
 
+   brw_reg sources[FB_WRITE_LOGICAL_NUM_SRCS];
+   sources[FB_WRITE_LOGICAL_SRC_COLOR0]     = color0;
+   sources[FB_WRITE_LOGICAL_SRC_COLOR1]     = color1;
+   sources[FB_WRITE_LOGICAL_SRC_SRC0_ALPHA] = src0_alpha;
+   sources[FB_WRITE_LOGICAL_SRC_DST_DEPTH]  = dst_depth;
+   sources[FB_WRITE_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(components);
+   sources[FB_WRITE_LOGICAL_SRC_NULL_RT]    = brw_imm_ud(null_rt);
+
+   if (prog_data->uses_omask)
+      sources[FB_WRITE_LOGICAL_SRC_OMASK] = s.sample_mask;
    if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_DEPTH))
-      src_depth = s.frag_depth;
-
+      sources[FB_WRITE_LOGICAL_SRC_SRC_DEPTH] = s.frag_depth;
    if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL))
-      src_stencil = s.frag_stencil;
+      sources[FB_WRITE_LOGICAL_SRC_SRC_STENCIL] = s.frag_stencil;
 
-   const brw_reg sources[] = {
-      color0, color1, src0_alpha, src_depth, dst_depth, src_stencil,
-      (prog_data->uses_omask ? s.sample_mask : brw_reg()),
-      brw_imm_ud(components)
-   };
-   assert(ARRAY_SIZE(sources) - 1 == FB_WRITE_LOGICAL_SRC_COMPONENTS);
    fs_inst *write = bld.emit(FS_OPCODE_FB_WRITE_LOGICAL, brw_reg(),
                              sources, ARRAY_SIZE(sources));
 
@@ -73,11 +76,23 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
          src0_alpha = offset(s.outputs[0], bld, 3);
 
       inst = brw_emit_single_fb_write(s, abld, s.outputs[target],
-                                      s.dual_src_output, src0_alpha, 4);
+                                      s.dual_src_output, src0_alpha, 4,
+                                      false);
       inst->target = target;
    }
 
    if (inst == NULL) {
+      struct brw_wm_prog_key *key = (brw_wm_prog_key*) s.key;
+      struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
+      /* Disable null_rt if any non color output is written or if
+       * alpha_to_coverage can be enabled. Since the alpha_to_coverage bit is
+       * coming from the BLEND_STATE structure and the HW will avoid reading
+       * it if null_rt is enabled.
+       */
+      const bool use_null_rt =
+         key->alpha_to_coverage == BRW_NEVER &&
+         !prog_data->uses_omask;
+
       /* Even if there's no color buffers enabled, we still need to send
        * alpha out the pipeline to our null renderbuffer to support
        * alpha-testing, alpha-to-coverage, and so on.
@@ -90,7 +105,8 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
       const brw_reg tmp = bld.vgrf(BRW_TYPE_UD, 4);
       bld.LOAD_PAYLOAD(tmp, srcs, 4, 0);
 
-      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4);
+      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4,
+                                      use_null_rt);
       inst->target = 0;
    }
 
@@ -236,7 +252,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
        *
        * The coarse pixel size is delivered as 2 u8 in r1.0
        */
-      struct brw_reg r1_0 = retype(brw_vec1_reg(BRW_GENERAL_REGISTER_FILE, 1, 0), BRW_TYPE_UB);
+      struct brw_reg r1_0 = retype(brw_vec1_reg(FIXED_GRF, 1, 0), BRW_TYPE_UB);
 
       const fs_builder dbld =
          abld.exec_all().group(MIN2(16, s.dispatch_width) * 2, 0);
@@ -592,7 +608,7 @@ brw_emit_repclear_shader(fs_visitor &s)
 
    /* We pass the clear color as a flat input.  Copy it to the output. */
    brw_reg color_input =
-      brw_make_reg(BRW_GENERAL_REGISTER_FILE, 2, 3, 0, 0, BRW_TYPE_UD,
+      brw_make_reg(FIXED_GRF, 2, 3, 0, 0, BRW_TYPE_UD,
               BRW_VERTICAL_STRIDE_8, BRW_WIDTH_2, BRW_HORIZONTAL_STRIDE_4,
               BRW_SWIZZLE_XYZW, WRITEMASK_XYZW);
 
@@ -998,6 +1014,8 @@ brw_compute_flat_inputs(struct brw_wm_prog_data *prog_data,
 {
    prog_data->flat_inputs = 0;
 
+   const unsigned per_vertex_start = prog_data->num_per_primitive_inputs;
+
    nir_foreach_shader_in_variable(var, shader) {
       /* flat shading */
       if (var->data.interpolation != INTERP_MODE_FLAT)
@@ -1008,7 +1026,7 @@ brw_compute_flat_inputs(struct brw_wm_prog_data *prog_data,
 
       unsigned slots = glsl_count_attribute_slots(var->type, false);
       for (unsigned s = 0; s < slots; s++) {
-         int input_index = prog_data->urb_setup[var->data.location + s];
+         int input_index = prog_data->urb_setup[var->data.location + s] - per_vertex_start;
 
          if (input_index >= 0)
             prog_data->flat_inputs |= 1 << input_index;

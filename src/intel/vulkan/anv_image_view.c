@@ -69,7 +69,8 @@ anv_image_fill_surface_state(struct anv_device *device,
     */
    union isl_color_value default_clear_color = { .u32 = { 0, } };
    if (aspect == VK_IMAGE_ASPECT_DEPTH_BIT)
-      default_clear_color.f32[0] = ANV_HZ_FC_VAL;
+      default_clear_color = anv_image_hiz_clear_value(image);
+
    if (!clear_color)
       clear_color = &default_clear_color;
 
@@ -192,164 +193,54 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
                               VK_IMAGE_ASPECT_DEPTH_BIT,
                               VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                               layout, queue_flags);
-   if (!blorp_can_hiz_clear_depth(device->info,
-                                  &iview->image->planes[0].primary_surface.isl,
-                                  clear_aux_usage,
-                                  iview->planes[0].isl.base_level,
-                                  iview->planes[0].isl.base_array_layer,
-                                  render_area.offset.x,
-                                  render_area.offset.y,
-                                  render_area.offset.x +
-                                  render_area.extent.width,
-                                  render_area.offset.y +
-                                  render_area.extent.height))
+
+   if (!isl_aux_usage_has_fast_clears(clear_aux_usage))
       return false;
 
-   if (depth_clear_value != ANV_HZ_FC_VAL)
+   if (isl_aux_usage_has_ccs(clear_aux_usage)) {
+      /* From the TGL PRM, Vol 9, "Compressed Depth Buffers" (under the
+       * "Texture performant" and "ZCS" columns):
+       *
+       *    Update with clear at either 16x8 or 8x4 granularity, based on
+       *    fs_clr or otherwise.
+       *
+       * Although alignment requirements are only listed for the texture
+       * performant mode, test results indicate that requirements exist for
+       * the non-texture performant mode as well. Disable partial clears.
+       */
+      if (render_area.offset.x > 0 ||
+          render_area.offset.y > 0 ||
+          render_area.extent.width !=
+          u_minify(iview->vk.extent.width, iview->vk.base_mip_level) ||
+          render_area.extent.height !=
+          u_minify(iview->vk.extent.height, iview->vk.base_mip_level)) {
+         return false;
+      }
+
+      /* When fast-clearing, hardware behaves in unexpected ways if the clear
+       * rectangle, aligned to 16x8, could cover neighboring LODs.
+       * Fortunately, ISL guarantees that LOD0 will be 8-row aligned and
+       * LOD0's height seems to not matter. Also, few applications ever clear
+       * LOD1+. Only allow fast-clearing upper LODs if no overlap can occur.
+       */
+      const struct isl_surf *surf =
+         &iview->image->planes[0].primary_surface.isl;
+      assert(isl_surf_usage_is_depth(surf->usage));
+      assert(surf->dim_layout == ISL_DIM_LAYOUT_GFX4_2D);
+      assert(surf->array_pitch_el_rows % 8 == 0);
+      if (clear_aux_usage == ISL_AUX_USAGE_HIZ_CCS_WT &&
+          iview->vk.base_mip_level >= 1 &&
+          (iview->vk.extent.width % 32 != 0 ||
+           surf->image_alignment_el.h % 8 != 0)) {
+         return false;
+      }
+   }
+
+   if (device->info->ver <= 12 &&
+       depth_clear_value != anv_image_hiz_clear_value(iview->image).f32[0])
       return false;
 
    /* If we got here, then we can fast clear */
-   return true;
-}
-
-static bool
-isl_color_value_requires_conversion(union isl_color_value color,
-                                    const struct isl_surf *surf,
-                                    const struct isl_view *view)
-{
-   if (surf->format == view->format && isl_swizzle_is_identity(view->swizzle))
-      return false;
-
-   uint32_t surf_pack[4] = { 0, 0, 0, 0 };
-   isl_color_value_pack(&color, surf->format, surf_pack);
-
-   uint32_t view_pack[4] = { 0, 0, 0, 0 };
-   union isl_color_value swiz_color =
-      isl_color_value_swizzle_inv(color, view->swizzle);
-   isl_color_value_pack(&swiz_color, view->format, view_pack);
-
-   return memcmp(surf_pack, view_pack, sizeof(surf_pack)) != 0;
-}
-
-bool
-anv_can_fast_clear_color_view(struct anv_device *device,
-                              struct anv_image_view *iview,
-                              VkImageLayout layout,
-                              union isl_color_value clear_color,
-                              uint32_t num_layers,
-                              VkRect2D render_area,
-                              const VkQueueFlagBits queue_flags)
-{
-   if (INTEL_DEBUG(DEBUG_NO_FAST_CLEAR))
-      return false;
-
-   if (iview->planes[0].isl.base_array_layer >=
-       anv_image_aux_layers(iview->image, VK_IMAGE_ASPECT_COLOR_BIT,
-                            iview->planes[0].isl.base_level))
-      return false;
-
-   /* Start by getting the fast clear type.  We use the first subpass
-    * layout here because we don't want to fast-clear if the first subpass
-    * to use the attachment can't handle fast-clears.
-    */
-   enum anv_fast_clear_type fast_clear_type =
-      anv_layout_to_fast_clear_type(device->info, iview->image,
-                                    VK_IMAGE_ASPECT_COLOR_BIT,
-                                    layout, queue_flags);
-   switch (fast_clear_type) {
-   case ANV_FAST_CLEAR_NONE:
-      return false;
-   case ANV_FAST_CLEAR_DEFAULT_VALUE:
-      if (!isl_color_value_is_zero(clear_color, iview->planes[0].isl.format))
-         return false;
-      break;
-   case ANV_FAST_CLEAR_ANY:
-      break;
-   }
-
-   /* Potentially, we could do partial fast-clears but doing so has crazy
-    * alignment restrictions.  It's easier to just restrict to full size
-    * fast clears for now.
-    */
-   if (render_area.offset.x != 0 ||
-       render_area.offset.y != 0 ||
-       render_area.extent.width != iview->vk.extent.width ||
-       render_area.extent.height != iview->vk.extent.height)
-      return false;
-
-   /* If the clear color is one that would require non-trivial format
-    * conversion on resolve, we don't bother with the fast clear.  This
-    * shouldn't be common as most clear colors are 0/1 and the most common
-    * format re-interpretation is for sRGB.
-    */
-   if (isl_color_value_requires_conversion(clear_color,
-                                           &iview->image->planes[0].primary_surface.isl,
-                                           &iview->planes[0].isl)) {
-      anv_perf_warn(VK_LOG_OBJS(&iview->vk.base),
-                    "Cannot fast-clear to colors which would require "
-                    "format conversion on resolve");
-      return false;
-   }
-
-   /* We only allow fast clears to the first slice of an image (level 0,
-    * layer 0) and only for the entire slice.  This guarantees us that, at
-    * any given time, there is only one clear color on any given image at
-    * any given time.  At the time of our testing (Jan 17, 2018), there
-    * were no known applications which would benefit from fast-clearing
-    * more than just the first slice.
-    */
-   if (iview->planes[0].isl.base_level > 0 ||
-       iview->planes[0].isl.base_array_layer > 0) {
-      anv_perf_warn(VK_LOG_OBJS(&iview->image->vk.base),
-                    "Rendering with multi-lod or multi-layer framebuffer "
-                    "with LOAD_OP_LOAD and baseMipLevel > 0 or "
-                    "baseArrayLayer > 0.  Not fast clearing.");
-      return false;
-   }
-
-   if (num_layers > 1) {
-      anv_perf_warn(VK_LOG_OBJS(&iview->image->vk.base),
-                    "Rendering to a multi-layer framebuffer with "
-                    "LOAD_OP_CLEAR.  Only fast-clearing the first slice");
-   }
-
-   /* Wa_18020603990 - slow clear surfaces up to 256x256, 32bpp. */
-   if (intel_needs_workaround(device->info, 18020603990)) {
-      const struct anv_surface *anv_surf =
-         &iview->image->planes->primary_surface;
-      if (isl_format_get_layout(anv_surf->isl.format)->bpb <= 32 &&
-          anv_surf->isl.logical_level0_px.w <= 256 &&
-          anv_surf->isl.logical_level0_px.h <= 256)
-         return false;
-   }
-
-   /* On gfx12.0, CCS fast clears don't seem to cover the correct portion of
-    * the aux buffer when the pitch is not 512B-aligned.
-    */
-   if (device->info->verx10 == 120 &&
-       iview->image->planes->primary_surface.isl.samples == 1 &&
-       iview->image->planes->primary_surface.isl.row_pitch_B % 512) {
-      anv_perf_warn(VK_LOG_OBJS(&iview->image->vk.base),
-                    "Pitch not 512B-aligned. Slow clearing surface.");
-      return false;
-   }
-
-   /* Disable sRGB fast-clears for non-0/1 color values on Gfx9. For texturing
-    * and draw calls, HW expects the clear color to be in two different color
-    * spaces after sRGB fast-clears - sRGB in the former and linear in the
-    * latter. By limiting the allowable values to 0/1, both color space
-    * requirements are satisfied.
-    *
-    * Gfx11+ is fine as the fast clear generate 2 colors at the clear color
-    * address, raw & converted such that all fixed functions can find the
-    * value they need.
-    */
-   if (device->info->ver == 9 &&
-       isl_format_is_srgb(iview->planes[0].isl.format) &&
-       !isl_color_value_is_zero_one(clear_color,
-                                    iview->planes[0].isl.format))
-      return false;
-
    return true;
 }
 

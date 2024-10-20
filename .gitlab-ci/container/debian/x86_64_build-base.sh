@@ -47,7 +47,6 @@ DEPS=(
     libflatbuffers-dev
     libgtk-3-dev
     "libllvm${LLVM_VERSION}"
-    libomxil-bellagio-dev
     libpciaccess-dev
     libunwind-dev
     libva-dev

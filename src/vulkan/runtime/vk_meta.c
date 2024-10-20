@@ -24,6 +24,7 @@
 #include "vk_meta_object_list.h"
 #include "vk_meta_private.h"
 
+#include "vk_buffer.h"
 #include "vk_command_buffer.h"
 #include "vk_device.h"
 #include "vk_pipeline.h"
@@ -440,10 +441,7 @@ vk_meta_create_graphics_pipeline(struct vk_device *device,
       for (uint32_t i = 0; i < render->color_attachment_count; i++) {
          cb_att[i] = (VkPipelineColorBlendAttachmentState) {
             .blendEnable = false,
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                              VK_COLOR_COMPONENT_G_BIT |
-                              VK_COLOR_COMPONENT_B_BIT |
-                              VK_COLOR_COMPONENT_A_BIT,
+            .colorWriteMask = render->color_attachment_write_masks[i],
          };
       }
       cb_info = (VkPipelineColorBlendStateCreateInfo) {
@@ -556,4 +554,23 @@ vk_meta_create_buffer_view(struct vk_command_buffer *cmd,
                                   VK_OBJECT_TYPE_BUFFER_VIEW,
                                   (uint64_t)*buffer_view_out);
    return VK_SUCCESS;
+}
+
+VkDeviceAddress
+vk_meta_buffer_address(struct vk_device *device, VkBuffer buffer,
+                       uint64_t offset, uint64_t range)
+{
+   const VkBufferDeviceAddressInfo info = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+      .buffer = buffer,
+   };
+   VkDeviceAddress base = device->dispatch_table.GetBufferDeviceAddress(
+      vk_device_to_handle(device), &info);
+
+   /* Only called for the assert()s in vk_buffer_range(), we don't care about
+    * the result.
+    */
+   vk_buffer_range(vk_buffer_from_handle(buffer), offset, range);
+
+   return base + offset;
 }

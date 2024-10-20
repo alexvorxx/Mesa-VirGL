@@ -146,9 +146,15 @@ VkResult genX(CreateQueryPool)(
    case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR: {
       const struct intel_perf_query_field_layout *layout =
          &pdevice->perf->query_layout;
+      const struct anv_queue_family *queue_family;
 
       perf_query_info = vk_find_struct_const(pCreateInfo->pNext,
                                              QUERY_POOL_PERFORMANCE_CREATE_INFO_KHR);
+      /* Same restriction as in EnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR() */
+      queue_family = &pdevice->queue.families[perf_query_info->queueFamilyIndex];
+      if (!queue_family->supports_perf)
+         return vk_error(device, VK_ERROR_UNKNOWN);
+
       n_passes = intel_perf_get_n_passes(pdevice->perf,
                                          perf_query_info->pCounterIndices,
                                          perf_query_info->counterIndexCount,
@@ -246,7 +252,8 @@ VkResult genX(CreateQueryPool)(
 
    result = anv_device_alloc_bo(device, "query-pool", size,
                                 ANV_BO_ALLOC_MAPPED |
-                                ANV_BO_ALLOC_HOST_CACHED_COHERENT,
+                                ANV_BO_ALLOC_HOST_CACHED_COHERENT |
+                                ANV_BO_ALLOC_CAPTURE,
                                 0 /* explicit_address */,
                                 &pool->bo);
    if (result != VK_SUCCESS)
@@ -257,7 +264,7 @@ VkResult genX(CreateQueryPool)(
          struct mi_builder b;
          struct anv_batch batch = {
             .start = pool->bo->map + khr_perf_query_preamble_offset(pool, p),
-            .end = pool->bo->map + khr_perf_query_preamble_offset(pool, p) + pool->data_offset,
+            .end = pool->bo->map + khr_perf_query_preamble_offset(pool, p) + pool->khr_perf_preamble_stride,
          };
          batch.next = batch.start;
 
@@ -332,14 +339,14 @@ void genX(DestroyQueryPool)(
 static uint64_t
 khr_perf_query_availability_offset(struct anv_query_pool *pool, uint32_t query, uint32_t pass)
 {
-   return query * (uint64_t)pool->stride + pass * (uint64_t)pool->pass_size;
+   return (query * (uint64_t)pool->stride) + (pass * (uint64_t)pool->pass_size);
 }
 
 static uint64_t
 khr_perf_query_data_offset(struct anv_query_pool *pool, uint32_t query, uint32_t pass, bool end)
 {
-   return query * (uint64_t)pool->stride + pass * (uint64_t)pool->pass_size +
-      pool->data_offset + (end ? pool->snapshot_size : 0);
+   return khr_perf_query_availability_offset(pool, query, pass) +
+          pool->data_offset + (end ? pool->snapshot_size : 0);
 }
 
 static struct anv_address
@@ -827,7 +834,7 @@ void genX(CmdResetQueryPool)(
     * mode.
     */
    if (anv_cmd_buffer_is_render_or_compute_queue(cmd_buffer) &&
-       (cmd_buffer->vk.pool->flags & VK_COMMAND_POOL_CREATE_PROTECTED_BIT) != 0 &&
+       (cmd_buffer->vk.pool->flags & VK_COMMAND_POOL_CREATE_PROTECTED_BIT) == 0 &&
        queryCount >= pdevice->instance->query_clear_with_blorp_threshold) {
       trace_intel_begin_query_clear_blorp(&cmd_buffer->trace);
 

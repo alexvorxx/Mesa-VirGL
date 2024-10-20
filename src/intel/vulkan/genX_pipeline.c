@@ -974,19 +974,6 @@ emit_3dstate_clip(struct anv_graphics_pipeline *pipeline,
 
          /* From the Vulkan 1.0.45 spec:
           *
-          *    "If the last active vertex processing stage shader entry
-          *    point's interface does not include a variable decorated with
-          *    ViewportIndex, then the first viewport is used."
-          */
-         if (vp && (last->vue_map.slots_valid & VARYING_BIT_VIEWPORT)) {
-            clip.MaximumVPIndex = vp->viewport_count > 0 ?
-               vp->viewport_count - 1 : 0;
-         } else {
-            clip.MaximumVPIndex = 0;
-         }
-
-         /* From the Vulkan 1.0.45 spec:
-          *
           *    "If the last active vertex processing stage shader entry point's
           *    interface does not include a variable decorated with Layer, then
           *    the first layer is used."
@@ -996,12 +983,6 @@ emit_3dstate_clip(struct anv_graphics_pipeline *pipeline,
 
       } else if (anv_pipeline_is_mesh(pipeline)) {
          const struct brw_mesh_prog_data *mesh_prog_data = get_mesh_prog_data(pipeline);
-         if (vp && vp->viewport_count > 0 &&
-             mesh_prog_data->map.start_dw[VARYING_SLOT_VIEWPORT] >= 0) {
-            clip.MaximumVPIndex = vp->viewport_count - 1;
-         } else {
-            clip.MaximumVPIndex = 0;
-         }
 
          clip.ForceZeroRTAIndexEnable =
             mesh_prog_data->map.start_dw[VARYING_SLOT_LAYER] < 0;
@@ -1176,16 +1157,14 @@ emit_3dstate_streamout(struct anv_graphics_pipeline *pipeline,
    }
 }
 
-static uint32_t
+static inline uint32_t
 get_sampler_count(const struct anv_shader_bin *bin)
 {
-   uint32_t count_by_4 = DIV_ROUND_UP(bin->bind_map.sampler_count, 4);
-
    /* We can potentially have way more than 32 samplers and that's ok.
     * However, the 3DSTATE_XS packets only have 3 bits to specify how
     * many to pre-fetch and all values above 4 are marked reserved.
     */
-   return MIN2(count_by_4, 4);
+   return DIV_ROUND_UP(CLAMP(bin->bind_map.sampler_count, 0, 16), 4);
 }
 
 static UNUSED struct anv_address
@@ -2200,12 +2179,11 @@ genX(compute_pipeline_emit)(struct anv_compute_pipeline *pipeline)
       vfe.URBEntryAllocationSize = 2;
       vfe.CURBEAllocationSize    = vfe_curbe_allocation;
 
-      if (cs_bin->prog_data->total_scratch) {
+      if (cs_prog_data->base.total_scratch) {
          /* Broadwell's Per Thread Scratch Space is in the range [0, 11]
           * where 0 = 1k, 1 = 2k, 2 = 4k, ..., 11 = 2M.
           */
-         vfe.PerThreadScratchSpace =
-            ffs(cs_bin->prog_data->total_scratch) - 11;
+         vfe.PerThreadScratchSpace = ffs(cs_prog_data->base.total_scratch) - 11;
          vfe.ScratchSpaceBasePointer =
             get_scratch_address(&pipeline->base, MESA_SHADER_COMPUTE, cs_bin);
       }

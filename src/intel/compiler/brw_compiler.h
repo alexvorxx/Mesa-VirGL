@@ -162,6 +162,14 @@ brw_shader_stage_requires_bindless_resources(gl_shader_stage stage)
    return brw_shader_stage_is_bindless(stage) || gl_shader_stage_is_mesh(stage);
 }
 
+static inline bool
+brw_shader_stage_has_inline_data(const struct intel_device_info *devinfo,
+                                 gl_shader_stage stage)
+{
+   return stage == MESA_SHADER_MESH || stage == MESA_SHADER_TASK ||
+          (stage == MESA_SHADER_COMPUTE && devinfo->verx10 >= 125);
+}
+
 /**
  * Program key structures.
  *
@@ -1018,14 +1026,6 @@ struct brw_cs_prog_data {
       struct brw_push_const_block cross_thread;
       struct brw_push_const_block per_thread;
    } push;
-
-   struct {
-      /** @{
-       * surface indices the CS-specific surfaces
-       */
-      uint32_t work_groups_start;
-      /** @} */
-   } binding_table;
 };
 
 static inline uint32_t
@@ -1319,6 +1319,7 @@ struct brw_compile_stats {
    uint32_t spills;
    uint32_t fills;
    uint32_t max_live_registers;
+   uint32_t non_ssa_registers_after_nir;
 };
 
 /** @} */

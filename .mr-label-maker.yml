@@ -28,6 +28,7 @@ issues:
         'freedreno/ir3': ['freedreno', 'ir3']
         'gallium': 'gallium'
         'gbm': 'gbm'
+        'gfxstream': 'gfxstream'
         'gitlab-ci': 'CI'
         'glsl': 'GLSL'
         'glvnd': 'GLVND'
@@ -58,6 +59,7 @@ issues:
         'nvc0': ['nouveau', 'nvc0']
         'nvk': 'NVK'
         'panfrost': 'panfrost'
+        'panvk': 'panvk'
         'pan/midgard': 'panfrost'
         'pvr': 'powervr'
         'r100': 'r100'
@@ -246,6 +248,7 @@ merge_requests:
         '^src/gallium/winsys/vc4/': ['vc4']
         '^src/gallium/winsys/virgl/': ['virgl']
         '^src/gbm/': ['gbm']
+        '^src/gfxstream/': ['gfxstream']
         '^src/glx/': ['GLX']
         '^src/imagination/': ['powervr']
         '^src/intel/blorp/': ['blorp']
@@ -289,6 +292,7 @@ merge_requests:
         '^src/nouveau/vulkan/': ['NVK']
         '^src/nouveau/winsys/': ['NVK']
         '^src/panfrost/': ['panfrost']
+        '^src/panfrost/vulkan/': ['panvk']
         '^src/virtio/vulkan/': ['venus']
         '^src/virtio/venus-protocol/': ['venus']
         '^src/virtio/ci/': ['venus']

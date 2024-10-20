@@ -75,6 +75,13 @@ rusticl_args = [
   '-Aclippy::type_complexity',
 ]
 
+rusticl_drivers_enable = get_option('gallium-rusticl-enable-drivers')
+foreach driver : rusticl_drivers_enable
+  rusticl_args += [
+    '--cfg', 'rusticl_enable_' + driver,
+  ]
+endforeach
+
 if with_platform_x11
   rusticl_args += [
     '--cfg', 'glx',
@@ -146,6 +153,7 @@ rusticl_opencl_bindings_rs = rust.bindgen(
     '--raw-line', 'unsafe impl std::marker::Send for _cl_image_desc {}',
     '--raw-line', 'unsafe impl std::marker::Sync for _cl_image_desc {}',
     '--allowlist-type', 'cl_.*',
+    '--blocklist-type', '(__)?cl_.*[2348(16)]',
     '--allowlist-type', 'cl.*_fn',
     '--allowlist-var', 'CL_.*',
     # needed for gl_sharing extension

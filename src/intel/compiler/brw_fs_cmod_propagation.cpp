@@ -59,7 +59,8 @@ cmod_propagate_cmp_to_add(const intel_device_info *devinfo, bblock_t *block,
 
    foreach_inst_in_block_reverse_starting_from(fs_inst, scan_inst, inst) {
       if (scan_inst->opcode == BRW_OPCODE_ADD &&
-          !scan_inst->is_partial_write() &&
+          !scan_inst->predicate &&
+          scan_inst->dst.is_contiguous() &&
           scan_inst->exec_size == inst->exec_size) {
          bool negate;
 
@@ -184,7 +185,8 @@ cmod_propagate_not(const intel_device_info *devinfo, bblock_t *block,
              scan_inst->opcode != BRW_OPCODE_AND)
             break;
 
-         if (scan_inst->is_partial_write() ||
+         if (scan_inst->predicate ||
+             !scan_inst->dst.is_contiguous() ||
              scan_inst->dst.offset != inst->src[0].offset ||
              scan_inst->exec_size != inst->exec_size)
             break;
@@ -298,7 +300,8 @@ opt_cmod_propagation_local(const intel_device_info *devinfo, bblock_t *block)
                 scan_inst->flags_written(devinfo) != flags_written)
                break;
 
-            if (scan_inst->is_partial_write() ||
+            if (scan_inst->predicate ||
+                !scan_inst->dst.is_contiguous() ||
                 scan_inst->dst.offset != inst->src[0].offset ||
                 scan_inst->exec_size != inst->exec_size)
                break;
@@ -350,6 +353,10 @@ opt_cmod_propagation_local(const intel_device_info *devinfo, bblock_t *block)
                    * - The source of the MOV instruction must be integer with
                    *   the same size.
                    *
+                   * - If the conditional modifier is neither Z nor NZ, then
+                   *   the source of the MOV instruction has to have same
+                   *   signedness.
+                   *
                    * - If the conditional modifier is Z or NZ, then the
                    *   destination type of inst must either be floating point
                    *   (of any size) or integer with a size at least as large
@@ -362,6 +369,12 @@ opt_cmod_propagation_local(const intel_device_info *devinfo, bblock_t *block)
                    */
                   if (!brw_type_is_int(inst->src[0].type) ||
                       brw_type_size_bits(scan_inst->dst.type) != brw_type_size_bits(inst->src[0].type))
+                     break;
+
+                  if (inst->conditional_mod != BRW_CONDITIONAL_Z &&
+                      inst->conditional_mod != BRW_CONDITIONAL_NZ &&
+                      brw_type_is_uint(inst->src[0].type) !=
+                      brw_type_is_uint(scan_inst->dst.type))
                      break;
 
                   if (brw_type_is_int(inst->dst.type)) {

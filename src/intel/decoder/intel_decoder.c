@@ -1075,7 +1075,7 @@ intel_group_get_length(const struct intel_group *group, const uint32_t *p)
 }
 
 static const char *
-intel_get_enum_name(struct intel_enum *e, uint64_t value)
+intel_get_enum_name(const struct intel_enum *e, uint64_t value)
 {
    for (int i = 0; i < e->nvalues; i++) {
       if (e->values[i]->value == value) {
@@ -1356,7 +1356,7 @@ iter_decode_field(struct intel_field_iterator *iter)
 
 void
 intel_field_iterator_init(struct intel_field_iterator *iter,
-                          struct intel_group *group,
+                          const struct intel_group *group,
                           const uint32_t *p, int p_bit,
                           bool print_colors)
 {
@@ -1412,7 +1412,7 @@ print_dword_header(FILE *outfile,
 }
 
 bool
-intel_field_is_header(struct intel_field *field)
+intel_field_is_header(const struct intel_field *field)
 {
    uint32_t bits;
 
@@ -1428,7 +1428,8 @@ intel_field_is_header(struct intel_field *field)
 }
 
 void
-intel_print_group_custom_spacing(FILE *outfile, struct intel_group *group, uint64_t offset,
+intel_print_group_custom_spacing(FILE *outfile,
+                                 const struct intel_group *group, uint64_t offset,
                                  const uint32_t *p, int p_bit, bool color,
                                  const char *spacing_reg, const char *spacing_dword)
 {
@@ -1456,7 +1457,8 @@ intel_print_group_custom_spacing(FILE *outfile, struct intel_group *group, uint6
 }
 
 void
-intel_print_group(FILE *outfile, struct intel_group *group, uint64_t offset,
+intel_print_group(FILE *outfile,
+                  const struct intel_group *group, uint64_t offset,
                   const uint32_t *p, int p_bit, bool color)
 {
    const char *spacing_reg = "    ";

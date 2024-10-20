@@ -287,10 +287,11 @@ optimize_atomic(nir_builder *b, nir_intrinsic_instr *intrin, bool return_prev)
 }
 
 static void
-optimize_and_rewrite_atomic(nir_builder *b, nir_intrinsic_instr *intrin)
+optimize_and_rewrite_atomic(nir_builder *b, nir_intrinsic_instr *intrin,
+                            bool fs_atomics_predicated)
 {
    nir_if *helper_nif = NULL;
-   if (b->shader->info.stage == MESA_SHADER_FRAGMENT) {
+   if (b->shader->info.stage == MESA_SHADER_FRAGMENT && !fs_atomics_predicated) {
       nir_def *helper = nir_is_helper_invocation(b, 1);
       helper_nif = nir_push_if(b, nir_inot(b, helper));
    }
@@ -320,7 +321,7 @@ optimize_and_rewrite_atomic(nir_builder *b, nir_intrinsic_instr *intrin)
 }
 
 static bool
-opt_uniform_atomics(nir_function_impl *impl)
+opt_uniform_atomics(nir_function_impl *impl, bool fs_atomics_predicated)
 {
    bool progress = false;
    nir_builder b = nir_builder_create(impl);
@@ -346,7 +347,7 @@ opt_uniform_atomics(nir_function_impl *impl)
             continue;
 
          b.cursor = nir_before_instr(instr);
-         optimize_and_rewrite_atomic(&b, intrin);
+         optimize_and_rewrite_atomic(&b, intrin, fs_atomics_predicated);
          progress = true;
       }
    }
@@ -355,7 +356,7 @@ opt_uniform_atomics(nir_function_impl *impl)
 }
 
 bool
-nir_opt_uniform_atomics(nir_shader *shader)
+nir_opt_uniform_atomics(nir_shader *shader, bool fs_atomics_predicated)
 {
    bool progress = false;
 
@@ -369,7 +370,9 @@ nir_opt_uniform_atomics(nir_shader *shader)
       return false;
 
    nir_foreach_function_impl(impl, shader) {
-      if (opt_uniform_atomics(impl)) {
+      nir_metadata_require(impl, nir_metadata_block_index);
+
+      if (opt_uniform_atomics(impl, fs_atomics_predicated)) {
          progress = true;
          nir_metadata_preserve(impl, nir_metadata_none);
       } else {

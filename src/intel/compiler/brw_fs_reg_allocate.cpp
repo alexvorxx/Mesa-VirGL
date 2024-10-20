@@ -300,9 +300,9 @@ private:
    brw_reg build_legacy_scratch_header(const fs_builder &bld,
                                        uint32_t spill_offset, int ip);
 
-   void emit_unspill(const fs_builder &bld, struct shader_stats *stats,
+   void emit_unspill(const fs_builder &bld, struct brw_shader_stats *stats,
                      brw_reg dst, uint32_t spill_offset, unsigned count, int ip);
-   void emit_spill(const fs_builder &bld, struct shader_stats *stats,
+   void emit_spill(const fs_builder &bld, struct brw_shader_stats *stats,
                    brw_reg src, uint32_t spill_offset, unsigned count, int ip);
 
    void set_spill_costs();
@@ -405,13 +405,127 @@ fs_reg_alloc::setup_live_interference(unsigned node,
    }
 }
 
+/**
+ * Returns true if this instruction's sources and destinations cannot
+ * safely be the same register.
+ *
+ * In most cases, a register can be written over safely by the same
+ * instruction that is its last use.  For a single instruction, the
+ * sources are dereferenced before writing of the destination starts
+ * (naturally).
+ *
+ * However, there are a few cases where this can be problematic:
+ *
+ * - Virtual opcodes that translate to multiple instructions in the
+ *   code generator: if src == dst and one instruction writes the
+ *   destination before a later instruction reads the source, then
+ *   src will have been clobbered.
+ *
+ * - SIMD16 compressed instructions with certain regioning (see below).
+ *
+ * The register allocator uses this information to set up conflicts between
+ * GRF sources and the destination.
+ */
+static bool
+brw_inst_has_source_and_destination_hazard(const fs_inst *inst)
+{
+   switch (inst->opcode) {
+   case FS_OPCODE_PACK_HALF_2x16_SPLIT:
+      /* Multiple partial writes to the destination */
+      return true;
+   case SHADER_OPCODE_SHUFFLE:
+      /* This instruction returns an arbitrary channel from the source and
+       * gets split into smaller instructions in the generator.  It's possible
+       * that one of the instructions will read from a channel corresponding
+       * to an earlier instruction.
+       */
+   case SHADER_OPCODE_SEL_EXEC:
+      /* This is implemented as
+       *
+       * mov(16)      g4<1>D      0D            { align1 WE_all 1H };
+       * mov(16)      g4<1>D      g5<8,8,1>D    { align1 1H }
+       *
+       * Because the source is only read in the second instruction, the first
+       * may stomp all over it.
+       */
+      return true;
+   case SHADER_OPCODE_QUAD_SWIZZLE:
+      switch (inst->src[1].ud) {
+      case BRW_SWIZZLE_XXXX:
+      case BRW_SWIZZLE_YYYY:
+      case BRW_SWIZZLE_ZZZZ:
+      case BRW_SWIZZLE_WWWW:
+      case BRW_SWIZZLE_XXZZ:
+      case BRW_SWIZZLE_YYWW:
+      case BRW_SWIZZLE_XYXY:
+      case BRW_SWIZZLE_ZWZW:
+         /* These can be implemented as a single Align1 region on all
+          * platforms, so there's never a hazard between source and
+          * destination.  C.f. fs_generator::generate_quad_swizzle().
+          */
+         return false;
+      default:
+         return !is_uniform(inst->src[0]);
+      }
+   case BRW_OPCODE_DPAS:
+      /* This is overly conservative. The actual hazard is more complicated to
+       * describe. When the repeat count is N, the single instruction behaves
+       * like N instructions with a repeat count of one, but the destination
+       * and source registers are incremented (in somewhat complex ways) for
+       * each instruction.
+       *
+       * This means the source and destination register is actually a range of
+       * registers. The hazard exists of an earlier iteration would write a
+       * register that should be read by a later iteration.
+       *
+       * There may be some advantage to properly modeling this, but for now,
+       * be overly conservative.
+       */
+      return inst->rcount > 1;
+   default:
+      /* The SIMD16 compressed instruction
+       *
+       * add(16)      g4<1>F      g4<8,8,1>F   g6<8,8,1>F
+       *
+       * is actually decoded in hardware as:
+       *
+       * add(8)       g4<1>F      g4<8,8,1>F   g6<8,8,1>F
+       * add(8)       g5<1>F      g5<8,8,1>F   g7<8,8,1>F
+       *
+       * Which is safe.  However, if we have uniform accesses
+       * happening, we get into trouble:
+       *
+       * add(8)       g4<1>F      g4<0,1,0>F   g6<8,8,1>F
+       * add(8)       g5<1>F      g4<0,1,0>F   g7<8,8,1>F
+       *
+       * Now our destination for the first instruction overwrote the
+       * second instruction's src0, and we get garbage for those 8
+       * pixels.  There's a similar issue for the pre-gfx6
+       * pixel_x/pixel_y, which are registers of 16-bit values and thus
+       * would get stomped by the first decode as well.
+       */
+      if (inst->exec_size == 16) {
+         for (int i = 0; i < inst->sources; i++) {
+            if (inst->src[i].file == VGRF && (inst->src[i].stride == 0 ||
+                                              inst->src[i].type == BRW_TYPE_UW ||
+                                              inst->src[i].type == BRW_TYPE_W ||
+                                              inst->src[i].type == BRW_TYPE_UB ||
+                                              inst->src[i].type == BRW_TYPE_B)) {
+               return true;
+            }
+         }
+      }
+      return false;
+   }
+}
+
 void
 fs_reg_alloc::setup_inst_interference(const fs_inst *inst)
 {
    /* Certain instructions can't safely use the same register for their
     * sources and destination.  Add interference.
     */
-   if (inst->dst.file == VGRF && inst->has_source_and_destination_hazard()) {
+   if (inst->dst.file == VGRF && brw_inst_has_source_and_destination_hazard(inst)) {
       for (unsigned i = 0; i < inst->sources; i++) {
          if (inst->src[i].file == VGRF) {
             ra_add_node_interference(g, first_vgrf_node + inst->dst.nr,
@@ -641,7 +755,7 @@ fs_reg_alloc::build_legacy_scratch_header(const fs_builder &bld,
 
 void
 fs_reg_alloc::emit_unspill(const fs_builder &bld,
-                           struct shader_stats *stats,
+                           struct brw_shader_stats *stats,
                            brw_reg dst,
                            uint32_t spill_offset, unsigned count, int ip)
 {
@@ -726,7 +840,7 @@ fs_reg_alloc::emit_unspill(const fs_builder &bld,
 
 void
 fs_reg_alloc::emit_spill(const fs_builder &bld,
-                         struct shader_stats *stats,
+                         struct brw_shader_stats *stats,
                          brw_reg src,
                          uint32_t spill_offset, unsigned count, int ip)
 {
@@ -940,7 +1054,7 @@ fs_reg_alloc::spill_reg(unsigned spill_reg)
 
    fs->spilled_any_registers = true;
 
-   fs->last_scratch += size * REG_SIZE;
+   fs->last_scratch += align(size * REG_SIZE, REG_SIZE * reg_unit(devinfo));
 
    /* We're about to replace all uses of this register.  It no longer
     * conflicts with anything so we can get rid of its interference.
@@ -964,7 +1078,7 @@ fs_reg_alloc::spill_reg(unsigned spill_reg)
              inst->src[i].nr == spill_reg) {
             int count = regs_read(inst, i);
             int subset_spill_offset = spill_offset +
-               ROUND_DOWN_TO(inst->src[i].offset, REG_SIZE);
+               ROUND_DOWN_TO(inst->src[i].offset, REG_SIZE * reg_unit(devinfo));
             brw_reg unspill_dst = alloc_spill_reg(count, ip);
 
             inst->src[i].nr = unspill_dst.nr;
@@ -993,7 +1107,7 @@ fs_reg_alloc::spill_reg(unsigned spill_reg)
           inst->dst.nr == spill_reg &&
           inst->opcode != SHADER_OPCODE_UNDEF) {
          int subset_spill_offset = spill_offset +
-            ROUND_DOWN_TO(inst->dst.offset, REG_SIZE);
+            ROUND_DOWN_TO(inst->dst.offset, reg_unit(devinfo) * REG_SIZE);
          brw_reg spill_src = alloc_spill_reg(regs_written(inst), ip);
 
          inst->dst.nr = spill_src.nr;

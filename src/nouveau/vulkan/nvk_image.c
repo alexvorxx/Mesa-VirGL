@@ -34,7 +34,7 @@ nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
        !fourcc_mod_is_vendor(drm_format_mod, NVIDIA))
       return 0;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
    if (p_format == PIPE_FORMAT_NONE)
       return 0;
 
@@ -81,13 +81,17 @@ nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
          features |= VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT;
    }
 
-   if (p_format == PIPE_FORMAT_R32_UINT || p_format == PIPE_FORMAT_R32_SINT ||
-       p_format == PIPE_FORMAT_R64_UINT || p_format == PIPE_FORMAT_R64_SINT)
+   if (nvk_format_supports_atomics(&pdev->info, p_format))
       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
+
+   if (p_format == PIPE_FORMAT_R8_UINT && tiling == VK_IMAGE_TILING_OPTIMAL)
+      features |= VK_FORMAT_FEATURE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
 
    if (features != 0) {
       features |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT;
       features |= VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
+      if (!vk_format_is_depth_or_stencil(vk_format))
+         features |= VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT_EXT;
    }
 
    return features;
@@ -191,7 +195,7 @@ nvk_get_drm_format_modifier_properties_list(struct nvk_physical_device *pdev,
 
    uint64_t mods[NIL_MAX_DRM_FORMAT_MODS];
    size_t mod_count = NIL_MAX_DRM_FORMAT_MODS;
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
    nil_drm_format_mods_for_format(&pdev->info, nil_format(p_format),
                                   &mod_count, &mods);
    if (mod_count == 0) {
@@ -268,6 +272,11 @@ vk_image_usage_to_format_features(VkImageUsageFlagBits usage_flag)
       return VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT;
    case VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT:
       return VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
+   case VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT:
+      return VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
+             VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
+   case VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR:
+      return VK_FORMAT_FEATURE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
    default:
       return 0;
    }
@@ -397,6 +406,10 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
                                    VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT)))
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
+   if (pImageFormatInfo->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT &&
+       pImageFormatInfo->type != VK_IMAGE_TYPE_2D)
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
    const uint32_t max_dim =
       nvk_image_max_dimension(&pdev->info, VK_IMAGE_TYPE_1D);
    VkExtent3D maxExtent;
@@ -424,6 +437,11 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
    uint32_t maxMipLevels = util_logbase2(max_dim) + 1;
    if (ycbcr_info != NULL || pImageFormatInfo->tiling == VK_IMAGE_TILING_LINEAR)
        maxMipLevels = 1;
+
+   if (pImageFormatInfo->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
+      maxArraySize = 1;
+      maxMipLevels = 1;
+   }
 
    VkSampleCountFlags sampleCounts = VK_SAMPLE_COUNT_1_BIT;
    if (pImageFormatInfo->tiling == VK_IMAGE_TILING_OPTIMAL &&
@@ -545,6 +563,10 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
        (pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT)))
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
+   if ((pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT) &&
+       (pImageFormatInfo->usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT))
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
    pImageFormatProperties->imageFormatProperties = (VkImageFormatProperties) {
       .maxExtent = maxExtent,
       .maxMipLevels = maxMipLevels,
@@ -573,6 +595,12 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
       case VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES: {
          VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = (void *) s;
          ycbcr_props->combinedImageSamplerDescriptorCount = plane_count;
+         break;
+      }
+      case VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY_EXT: {
+         VkHostImageCopyDevicePerformanceQueryEXT *host_props = (void *) s;
+         host_props->optimalDeviceAccess = true;
+         host_props->identicalMemoryLayout = true;
          break;
       }
       default:
@@ -667,7 +695,7 @@ nvk_GetPhysicalDeviceSparseImageFormatProperties2(
 
    VkImageAspectFlags aspects = vk_format_aspects(pFormatInfo->format);
    const enum pipe_format pipe_format =
-      vk_format_to_pipe_format(pFormatInfo->format);
+      nvk_format_to_pipe_format(pFormatInfo->format);
    const enum nil_image_dim dim = vk_image_type_to_nil_dim(pFormatInfo->type);
    const enum nil_sample_layout sample_layout =
       nil_choose_sample_layout(pFormatInfo->samples);
@@ -725,6 +753,7 @@ nvk_image_init(struct nvk_device *dev,
       usage |= NIL_IMAGE_USAGE_SPARSE_RESIDENCY_BIT;
    }
 
+   uint32_t explicit_row_stride_B = 0;
    if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
       /* Modifiers are not supported with YCbCr */
       assert(image->plane_count == 1);
@@ -734,13 +763,19 @@ nvk_image_init(struct nvk_device *dev,
                               IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT);
       if (mod_explicit_info) {
          image->vk.drm_format_mod = mod_explicit_info->drmFormatModifier;
+         /* Normally with explicit modifiers, the client specifies all strides,
+          * however in our case, we can only really make use of this in the linear
+          * case, and we can only create 2D non-array linear images, so ultimately
+          * we only care about the row stride. 
+          */
+         explicit_row_stride_B = mod_explicit_info->pPlaneLayouts->rowPitch;
       } else {
          const struct VkImageDrmFormatModifierListCreateInfoEXT *mod_list_info =
             vk_find_struct_const(pCreateInfo->pNext,
                                  IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
 
          enum pipe_format p_format =
-            vk_format_to_pipe_format(pCreateInfo->format);
+            nvk_format_to_pipe_format(pCreateInfo->format);
          image->vk.drm_format_mod =
             nil_select_best_drm_format_mod(&pdev->info, nil_format(p_format),
                                            mod_list_info->drmFormatModifierCount,
@@ -754,7 +789,7 @@ nvk_image_init(struct nvk_device *dev,
 
          struct nil_image_init_info tiled_shadow_nil_info = {
             .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
-            .format = nil_format(vk_format_to_pipe_format(image->vk.format)),
+            .format = nil_format(nvk_format_to_pipe_format(image->vk.format)),
             .modifier = DRM_FORMAT_MOD_INVALID,
             .extent_px = {
                .width = pCreateInfo->extent.width,
@@ -765,6 +800,7 @@ nvk_image_init(struct nvk_device *dev,
             .levels = pCreateInfo->mipLevels,
             .samples = pCreateInfo->samples,
             .usage = usage & ~NIL_IMAGE_USAGE_LINEAR_BIT,
+            .explicit_row_stride_B = 0,
          };
          image->linear_tiled_shadow.nil =
             nil_image_new(&pdev->info, &tiled_shadow_nil_info);
@@ -782,7 +818,7 @@ nvk_image_init(struct nvk_device *dev,
          ycbcr_info->planes[plane].denominator_scales[1] : 1;
       struct nil_image_init_info nil_info = {
          .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
-         .format = nil_format(vk_format_to_pipe_format(format)),
+         .format = nil_format(nvk_format_to_pipe_format(format)),
          .modifier = image->vk.drm_format_mod,
          .extent_px = {
             .width = pCreateInfo->extent.width / width_scale,
@@ -793,6 +829,7 @@ nvk_image_init(struct nvk_device *dev,
          .levels = pCreateInfo->mipLevels,
          .samples = pCreateInfo->samples,
          .usage = usage,
+         .explicit_row_stride_B = explicit_row_stride_B,
       };
 
       image->planes[plane].nil = nil_image_new(&pdev->info, &nil_info);
@@ -812,6 +849,7 @@ nvk_image_init(struct nvk_device *dev,
          .levels = pCreateInfo->mipLevels,
          .samples = pCreateInfo->samples,
          .usage = usage,
+         .explicit_row_stride_B = 0,
       };
 
       image->stencil_copy_temp.nil =
@@ -1019,6 +1057,18 @@ nvk_get_image_memory_requirements(struct nvk_device *dev,
 {
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
    uint32_t memory_types = (1 << pdev->mem_type_count) - 1;
+
+   /* Remove non host visible heaps from the types for host image copy in case
+    * of potential issues. This should be removed when we get ReBAR.
+    */
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      struct nvk_physical_device *pdev = nvk_device_physical(dev);
+      for (uint32_t i = 0; i < pdev->mem_type_count; i++) {
+         if (!(pdev->mem_types[i].propertyFlags &
+             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+            memory_types &= ~BITFIELD_BIT(i);
+      }
+   }
 
    // TODO hope for the best?
 
@@ -1232,6 +1282,14 @@ nvk_get_image_subresource_layout(struct nvk_device *dev,
    offset_B += nil_image_level_layer_offset_B(&plane->nil, isr->mipLevel,
                                               isr->arrayLayer);
 
+   VkSubresourceHostMemcpySizeEXT *host_memcpy_size =
+      vk_find_struct(pLayout->pNext, SUBRESOURCE_HOST_MEMCPY_SIZE_EXT);
+   if (host_memcpy_size) {
+      host_memcpy_size->size =
+         nil_image_level_layer_size_B(&plane->nil, isr->mipLevel) *
+         plane->nil.extent_px.array_len;
+   }
+
    pLayout->subresourceLayout = (VkSubresourceLayout) {
       .offset = offset_B,
       .size = nil_image_level_size_B(&plane->nil, isr->mipLevel),
@@ -1292,6 +1350,11 @@ nvk_image_plane_bind(struct nvk_device *dev,
    } else {
       assert(plane->nil.pte_kind == 0);
       plane->addr = mem->mem->va->addr + *offset_B;
+   }
+
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      plane->host_mem = mem;
+      plane->host_offset = *offset_B;
    }
 
    *offset_B += plane_size_B;
@@ -1708,5 +1771,14 @@ nvk_queue_image_opaque_bind(struct nvk_queue *queue,
       }
    }
 
+   return VK_SUCCESS;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+nvk_GetImageOpaqueCaptureDescriptorDataEXT(
+    VkDevice _device,
+    const VkImageCaptureDescriptorDataInfoEXT *pInfo,
+    void *pData)
+{
    return VK_SUCCESS;
 }

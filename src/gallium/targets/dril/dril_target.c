@@ -337,18 +337,21 @@ init_dri2_configs(int fd)
 
    void * (*peglGetProcAddress)(const char *) = dlsym(egl, "eglGetProcAddress");
    EGLDisplay (*peglGetPlatformDisplayEXT)(EGLenum, void *, const EGLint *) = peglGetProcAddress("eglGetPlatformDisplayEXT");
-   EGLDisplay (*peglInitialize)(EGLDisplay, int*, int*) = peglGetProcAddress("eglInitialize");
-   void (*peglTerminate)(EGLDisplay) = peglGetProcAddress("eglTerminate");
+   EGLBoolean (*peglInitialize)(EGLDisplay, int*, int*) = peglGetProcAddress("eglInitialize");
+   EGLBoolean (*peglTerminate)(EGLDisplay) = peglGetProcAddress("eglTerminate");
    EGLBoolean (*peglGetConfigs)(EGLDisplay, EGLConfig*, EGLint, EGLint*) = peglGetProcAddress("eglGetConfigs");
    EGLBoolean (*peglGetConfigAttrib)(EGLDisplay, EGLConfig, EGLint, EGLint *) = peglGetProcAddress("eglGetConfigAttrib");
    const char *(*peglQueryString)(EGLDisplay, EGLint) = peglGetProcAddress("eglQueryString");
 
-   /* try opening GBM for hardware driver info */
-   struct gbm_device *gbm = gbm_create_device(fd);
-   if (!gbm)
-      goto out;
+   struct gbm_device *gbm = NULL;
+   if (fd != -1) {
+      /* try opening GBM for hardware driver info */
+      gbm = gbm_create_device(fd);
+      if (!gbm)
+         goto out;
+   }
 
-   EGLDisplay dpy = peglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_MESA, gbm, NULL);
+   EGLDisplay dpy = peglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_MESA, gbm ? gbm : EGL_DEFAULT_DISPLAY, NULL);
    if (!dpy)
       goto out_gbm;
    int maj, min;
@@ -415,7 +418,8 @@ out_egl:
    peglTerminate(dpy);
 
 out_gbm:
-   gbm_device_destroy(gbm);
+   if (gbm)
+      gbm_device_destroy(gbm);
 out:
    dlclose(egl);
    if (c)
@@ -430,17 +434,19 @@ drilCreateNewScreen(int scrn, int fd,
                     const __DRIextension **driver_extensions,
                     const __DRIconfig ***driver_configs, void *data)
 {
-   /* multiply for possible 1/2/4/8/16/32 MSAA configs */
-   // allocate an array of pointers
-   const __DRIconfig **configs = NULL;
-   /* try dri2 if fd is valid */
-   if (fd >= 0)
-      configs = init_dri2_configs(fd);
-   if (!configs) {
-      configs = calloc(ARRAY_SIZE(drilConfigs) + 1, sizeof(void *));
+   const __DRIconfig **configs = init_dri2_configs(fd);
+   if (!configs && fd == -1) {
       // otherwise set configs to point to our config list
+      configs = calloc(ARRAY_SIZE(drilConfigs) * 2 + 1, sizeof(void *));
+      int c = 0;
       for (int i = 0; i < ARRAY_SIZE(drilConfigs); i++) {
-         configs[i] = mem_dup(&drilConfigs[i], sizeof(drilConfigs[i]));
+         /* create normal config */
+         configs[c++] = mem_dup(&drilConfigs[i], sizeof(drilConfigs[i]));
+
+         /* create double-buffered config */
+         configs[c] = mem_dup(&drilConfigs[i], sizeof(drilConfigs[i]));
+         struct gl_config *cfg = (void*)configs[c++];
+         cfg->doubleBufferMode = 1;
       }
    }
 
@@ -604,3 +610,4 @@ DEFINE_LOADER_DRM_ENTRYPOINT(udl)
 DEFINE_LOADER_DRM_ENTRYPOINT(zynqmp_dpsub)
 DEFINE_LOADER_DRM_ENTRYPOINT(lima)
 DEFINE_LOADER_DRM_ENTRYPOINT(d3d12)
+DEFINE_LOADER_DRM_ENTRYPOINT(zink)

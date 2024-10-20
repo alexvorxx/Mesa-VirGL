@@ -164,6 +164,14 @@ enum pipe_video_cap
     * Encoding surface width/height alignment
     */
    PIPE_VIDEO_CAP_ENC_SURFACE_ALIGNMENT = 50,
+   /*
+    * HEVC range extension support pipe_h265_enc_cap_range_extension
+    */
+   PIPE_VIDEO_CAP_ENC_HEVC_RANGE_EXTENSION_SUPPORT = 51,
+   /*
+    * HEVC range extension support pipe_h265_enc_cap_range_extension_flags
+    */
+   PIPE_VIDEO_CAP_ENC_HEVC_RANGE_EXTENSION_FLAGS_SUPPORT = 52,
 };
 
 enum pipe_video_h264_enc_dbk_filter_mode_flags
@@ -192,6 +200,7 @@ enum codec_unit_location_flags
    PIPE_VIDEO_CODEC_UNIT_LOCATION_FLAG_NONE = 0x0,
    /* Requires PIPE_VIDEO_FEEDBACK_METADATA_TYPE_MAX_SLICE_SIZE_OVERFLOW */
    PIPE_VIDEO_CODEC_UNIT_LOCATION_FLAG_MAX_SLICE_SIZE_OVERFLOW = 0x1,
+   PIPE_VIDEO_CODEC_UNIT_LOCATION_FLAG_SINGLE_NALU = 0x2,
 };
 
 /* To be used with PIPE_VIDEO_CAP_ENC_SUPPORTS_FEEDBACK_METADATA

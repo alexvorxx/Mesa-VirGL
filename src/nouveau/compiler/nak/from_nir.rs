@@ -6,19 +6,20 @@
 use crate::api::GetDebugFlags;
 use crate::api::DEBUG;
 use crate::builder::*;
-use crate::cfg::CFGBuilder;
 use crate::ir::*;
-use crate::nir::*;
-use crate::nir_instr_printer::NirInstrPrinter;
 use crate::sph::{OutputTopology, PixelImap};
 
 use nak_bindings::*;
 
+use compiler::bindings::*;
+use compiler::cfg::CFGBuilder;
+use compiler::nir::*;
+use compiler::nir_instr_printer::NirInstrPrinter;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
 
-fn init_info_from_nir(nir: &nir_shader) -> ShaderInfo {
+fn init_info_from_nir(nak: &nak_compiler, nir: &nir_shader) -> ShaderInfo {
     ShaderInfo {
         num_gprs: 0,
         num_instrs: 0,
@@ -158,7 +159,7 @@ fn init_info_from_nir(nir: &nir_shader) -> ShaderInfo {
                         None
                     } else {
                         Some(Box::new(unsafe {
-                            nak_xfb_from_nir(nir.xfb_info)
+                            nak_xfb_from_nir(nak, nir.xfb_info)
                         }))
                     },
                 })
@@ -314,11 +315,15 @@ struct ShaderFromNir<'a> {
 }
 
 impl<'a> ShaderFromNir<'a> {
-    fn new(nir: &'a nir_shader, sm: &'a dyn ShaderModel) -> Self {
+    fn new(
+        nak: &nak_compiler,
+        nir: &'a nir_shader,
+        sm: &'a dyn ShaderModel,
+    ) -> Self {
         Self {
             nir: nir,
             sm: sm,
-            info: init_info_from_nir(nir),
+            info: init_info_from_nir(nak, nir),
             float_ctl: ShaderFloatControls::from_nir(nir),
             cfg: CFGBuilder::new(),
             label_alloc: LabelAllocator::new(),
@@ -330,7 +335,7 @@ impl<'a> ShaderFromNir<'a> {
             end_block_id: 0,
             ssa_map: HashMap::new(),
             saturated: HashSet::new(),
-            nir_instr_printer: NirInstrPrinter::new(),
+            nir_instr_printer: NirInstrPrinter::new().unwrap(),
         }
     }
 
@@ -479,7 +484,9 @@ impl<'a> ShaderFromNir<'a> {
     }
 
     fn alu_src_is_saturated(&self, src: &nir_alu_src) -> bool {
-        self.saturated.get(&(src.as_def() as *const _)).is_some()
+        self.saturated
+            .get(&(src.src.as_def() as *const _))
+            .is_some()
     }
 
     fn parse_alu(&mut self, b: &mut impl SSABuilder, alu: &nir_alu_instr) {
@@ -1463,8 +1470,6 @@ impl<'a> ShaderFromNir<'a> {
             nir_op_ixor => b.lop2(LogicOp2::Xor, srcs[0], srcs[1]),
             nir_op_pack_half_2x16_split | nir_op_pack_half_2x16_rtz_split => {
                 assert!(alu.get_src(0).bit_size() == 32);
-                let low = b.alloc_ssa(RegFile::GPR, 1);
-                let high = b.alloc_ssa(RegFile::GPR, 1);
 
                 let rnd_mode = match alu.op {
                     nir_op_pack_half_2x16_split => FRndMode::NearestEven,
@@ -1472,32 +1477,46 @@ impl<'a> ShaderFromNir<'a> {
                     _ => panic!("Unhandled fp16 pack op"),
                 };
 
-                b.push_op(OpF2F {
-                    dst: low.into(),
-                    src: srcs[0],
-                    src_type: FloatType::F32,
-                    dst_type: FloatType::F16,
-                    rnd_mode: rnd_mode,
-                    ftz: false,
-                    high: false,
-                    integer_rnd: false,
-                });
+                if self.sm.sm() >= 86 {
+                    let result: SSARef = b.alloc_ssa(RegFile::GPR, 1);
+                    b.push_op(OpF2FP {
+                        dst: result.into(),
+                        srcs: [srcs[1], srcs[0]],
+                        rnd_mode: rnd_mode,
+                    });
 
-                let src_bits = usize::from(alu.get_src(1).bit_size());
-                let src_type = FloatType::from_bits(src_bits);
-                assert!(matches!(src_type, FloatType::F32));
-                b.push_op(OpF2F {
-                    dst: high.into(),
-                    src: srcs[1],
-                    src_type: FloatType::F32,
-                    dst_type: FloatType::F16,
-                    rnd_mode: rnd_mode,
-                    ftz: false,
-                    high: false,
-                    integer_rnd: false,
-                });
+                    result
+                } else {
+                    let low = b.alloc_ssa(RegFile::GPR, 1);
+                    let high = b.alloc_ssa(RegFile::GPR, 1);
 
-                b.prmt(low.into(), high.into(), [0, 1, 4, 5])
+                    b.push_op(OpF2F {
+                        dst: low.into(),
+                        src: srcs[0],
+                        src_type: FloatType::F32,
+                        dst_type: FloatType::F16,
+                        rnd_mode: rnd_mode,
+                        ftz: false,
+                        high: false,
+                        integer_rnd: false,
+                    });
+
+                    let src_bits = usize::from(alu.get_src(1).bit_size());
+                    let src_type = FloatType::from_bits(src_bits);
+                    assert!(matches!(src_type, FloatType::F32));
+                    b.push_op(OpF2F {
+                        dst: high.into(),
+                        src: srcs[1],
+                        src_type: FloatType::F32,
+                        dst_type: FloatType::F16,
+                        rnd_mode: rnd_mode,
+                        ftz: false,
+                        high: false,
+                        integer_rnd: false,
+                    });
+
+                    b.prmt(low.into(), high.into(), [0, 1, 4, 5])
+                }
             }
             nir_op_prmt_nv => {
                 let dst = b.alloc_ssa(RegFile::GPR, 1);
@@ -1656,72 +1675,6 @@ impl<'a> ShaderFromNir<'a> {
                     assert!(alu.def.bit_size() == 32);
                     b.shr(srcs[0], srcs[1], false)
                 }
-            }
-            nir_op_fddx | nir_op_fddx_coarse | nir_op_fddx_fine => {
-                // TODO: Real coarse derivatives
-
-                assert!(alu.def.bit_size() == 32);
-                let ftype = FloatType::F32;
-                let scratch = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpShfl {
-                    dst: scratch[0].into(),
-                    in_bounds: Dst::None,
-                    src: srcs[0],
-                    lane: 1_u32.into(),
-                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
-                    op: ShflOp::Bfly,
-                });
-
-                let dst = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpFSwzAdd {
-                    dst: dst[0].into(),
-                    srcs: [scratch[0].into(), srcs[0]],
-                    ops: [
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubRight,
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubRight,
-                    ],
-                    rnd_mode: self.float_ctl[ftype].rnd_mode,
-                    ftz: self.float_ctl[ftype].ftz,
-                });
-
-                dst
-            }
-            nir_op_fddy | nir_op_fddy_coarse | nir_op_fddy_fine => {
-                // TODO: Real coarse derivatives
-
-                assert!(alu.def.bit_size() == 32);
-                let ftype = FloatType::F32;
-                let scratch = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpShfl {
-                    dst: scratch[0].into(),
-                    in_bounds: Dst::None,
-                    src: srcs[0],
-                    lane: 2_u32.into(),
-                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
-                    op: ShflOp::Bfly,
-                });
-
-                let dst = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpFSwzAdd {
-                    dst: dst[0].into(),
-                    srcs: [scratch[0].into(), srcs[0]],
-                    ops: [
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubRight,
-                        FSwzAddOp::SubRight,
-                    ],
-                    rnd_mode: self.float_ctl[ftype].rnd_mode,
-                    ftz: self.float_ctl[ftype].ftz,
-                });
-
-                dst
             }
             _ => panic!("Unsupported ALU instruction: {}", alu.info().name()),
         };
@@ -2128,6 +2081,76 @@ impl<'a> ShaderFromNir<'a> {
                     dst.push(u[0]);
                 }
                 self.set_ssa(&intrin.def, dst);
+            }
+            nir_intrinsic_ddx
+            | nir_intrinsic_ddx_coarse
+            | nir_intrinsic_ddx_fine => {
+                // TODO: Real coarse derivatives
+
+                assert!(intrin.def.bit_size() == 32);
+                let ftype = FloatType::F32;
+                let scratch = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpShfl {
+                    dst: scratch[0].into(),
+                    in_bounds: Dst::None,
+                    src: self.get_src(&srcs[0]),
+                    lane: 1_u32.into(),
+                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
+                    op: ShflOp::Bfly,
+                });
+
+                let dst = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpFSwzAdd {
+                    dst: dst[0].into(),
+                    srcs: [scratch[0].into(), self.get_src(&srcs[0])],
+                    ops: [
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubRight,
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubRight,
+                    ],
+                    rnd_mode: self.float_ctl[ftype].rnd_mode,
+                    ftz: self.float_ctl[ftype].ftz,
+                });
+
+                self.set_dst(&intrin.def, dst);
+            }
+            nir_intrinsic_ddy
+            | nir_intrinsic_ddy_coarse
+            | nir_intrinsic_ddy_fine => {
+                // TODO: Real coarse derivatives
+
+                assert!(intrin.def.bit_size() == 32);
+                let ftype = FloatType::F32;
+                let scratch = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpShfl {
+                    dst: scratch[0].into(),
+                    in_bounds: Dst::None,
+                    src: self.get_src(&srcs[0]),
+                    lane: 2_u32.into(),
+                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
+                    op: ShflOp::Bfly,
+                });
+
+                let dst = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpFSwzAdd {
+                    dst: dst[0].into(),
+                    srcs: [scratch[0].into(), self.get_src(&srcs[0])],
+                    ops: [
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubRight,
+                        FSwzAddOp::SubRight,
+                    ],
+                    rnd_mode: self.float_ctl[ftype].rnd_mode,
+                    ftz: self.float_ctl[ftype].ftz,
+                });
+
+                self.set_dst(&intrin.def, dst);
             }
             nir_intrinsic_ballot => {
                 assert!(srcs[0].bit_size() == 1);
@@ -3279,6 +3302,7 @@ impl<'a> ShaderFromNir<'a> {
                 let annotation = self
                     .nir_instr_printer
                     .instr_to_string(ni)
+                    .unwrap()
                     .split_whitespace()
                     .collect::<Vec<_>>()
                     .join(" ");
@@ -3327,6 +3351,7 @@ impl<'a> ShaderFromNir<'a> {
                 let annotation = self
                     .nir_instr_printer
                     .instr_to_string(ni)
+                    .unwrap()
                     .split_whitespace()
                     .collect::<Vec<_>>()
                     .join(" ");
@@ -3404,6 +3429,7 @@ impl<'a> ShaderFromNir<'a> {
                     let annotation = self
                         .nir_instr_printer
                         .instr_to_string(ni)
+                        .unwrap()
                         .split_whitespace()
                         .collect::<Vec<_>>()
                         .join(" ");
@@ -3604,8 +3630,9 @@ impl<'a> ShaderFromNir<'a> {
 }
 
 pub fn nak_shader_from_nir<'a>(
+    nak: &nak_compiler,
     ns: &'a nir_shader,
     sm: &'a dyn ShaderModel,
 ) -> Shader<'a> {
-    ShaderFromNir::new(ns, sm).parse_shader()
+    ShaderFromNir::new(nak, ns, sm).parse_shader()
 }

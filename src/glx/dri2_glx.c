@@ -58,7 +58,6 @@
 struct dri2_drawable
 {
    __GLXDRIdrawable base;
-   __DRIdrawable *driDrawable;
    __DRIbuffer buffers[5];
    int bufferCount;
    int width, height;
@@ -89,174 +88,13 @@ merge_counter(uint32_t hi, uint32_t lo)
 }
 
 static void
-dri2_destroy_context(struct glx_context *context)
-{
-   driReleaseDrawables(context);
-
-   free((char *) context->extensions);
-
-   driDestroyContext(context->driContext);
-
-   free(context);
-}
-
-static Bool
-dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
-{
-   struct dri2_drawable *pdraw, *pread;
-   __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
-
-   pdraw = (struct dri2_drawable *) driFetchDrawable(context, draw);
-   pread = (struct dri2_drawable *) driFetchDrawable(context, read);
-
-   driReleaseDrawables(context);
-
-   if (pdraw)
-      dri_draw = pdraw->driDrawable;
-   else if (draw != None)
-      return GLXBadDrawable;
-
-   if (pread)
-      dri_read = pread->driDrawable;
-   else if (read != None)
-      return GLXBadDrawable;
-
-   if (!driBindContext(context->driContext, dri_draw, dri_read))
-      return GLXBadContext;
-
-   return Success;
-}
-
-static void
-dri2_unbind_context(struct glx_context *context)
-{
-   driUnbindContext(context->driContext);
-}
-
-static struct glx_context *
-dri2_create_context_attribs(struct glx_screen *base,
-			    struct glx_config *config_base,
-			    struct glx_context *shareList,
-			    unsigned num_attribs,
-			    const uint32_t *attribs,
-			    unsigned *error)
-{
-   struct glx_context *pcp = NULL;
-   struct dri2_screen *psc = (struct dri2_screen *) base;
-   __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) config_base;
-   __DRIcontext *shared = NULL;
-
-   struct dri_ctx_attribs dca;
-   uint32_t ctx_attribs[2 * 6];
-   unsigned num_ctx_attribs = 0;
-
-   *error = dri_convert_glx_attribs(num_attribs, attribs, &dca);
-   if (*error != __DRI_CTX_ERROR_SUCCESS)
-      goto error_exit;
-
-   /* Check the renderType value */
-   if (!validate_renderType_against_config(config_base, dca.render_type)) {
-      *error = BadValue;
-      goto error_exit;
-   }
-
-   if (shareList) {
-      /* We can't share with an indirect context */
-      if (!shareList->isDirect)
-         return NULL;
-
-      /* The GLX_ARB_create_context_no_error specs say:
-       *
-       *    BadMatch is generated if the value of GLX_CONTEXT_OPENGL_NO_ERROR_ARB
-       *    used to create <share_context> does not match the value of
-       *    GLX_CONTEXT_OPENGL_NO_ERROR_ARB for the context being created.
-       */
-      if (!!shareList->noError != !!dca.no_error) {
-         *error = BadMatch;
-         return NULL;
-      }
-
-      shared = shareList->driContext;
-   }
-
-   pcp = calloc(1, sizeof *pcp);
-   if (pcp == NULL) {
-      *error = BadAlloc;
-      goto error_exit;
-   }
-
-   if (!glx_context_init(pcp, &psc->base, config_base))
-      goto error_exit;
-
-   ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MAJOR_VERSION;
-   ctx_attribs[num_ctx_attribs++] = dca.major_ver;
-   ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MINOR_VERSION;
-   ctx_attribs[num_ctx_attribs++] = dca.minor_ver;
-
-   /* Only send a value when the non-default value is requested.  By doing
-    * this we don't have to check the driver's DRI2 version before sending the
-    * default value.
-    */
-   if (dca.reset != __DRI_CTX_RESET_NO_NOTIFICATION) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_RESET_STRATEGY;
-      ctx_attribs[num_ctx_attribs++] = dca.reset;
-   }
-
-   if (dca.release != __DRI_CTX_RELEASE_BEHAVIOR_FLUSH) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_RELEASE_BEHAVIOR;
-      ctx_attribs[num_ctx_attribs++] = dca.release;
-   }
-
-   if (dca.no_error) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_NO_ERROR;
-      ctx_attribs[num_ctx_attribs++] = dca.no_error;
-      pcp->noError = GL_TRUE;
-   }
-
-   if (dca.flags != 0) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_FLAGS;
-      ctx_attribs[num_ctx_attribs++] = dca.flags;
-   }
-
-   /* The renderType is retrieved from attribs, or set to default
-    *  of GLX_RGBA_TYPE.
-    */
-   pcp->renderType = dca.render_type;
-
-   pcp->driContext =
-      driCreateContextAttribs(psc->driScreen,
-					  dca.api,
-					  config ? config->driConfig : NULL,
-					  shared,
-					  num_ctx_attribs / 2,
-					  ctx_attribs,
-					  error,
-					  pcp);
-
-   *error = dri_context_error_to_glx_error(*error);
-
-   if (pcp->driContext == NULL)
-      goto error_exit;
-
-   pcp->vtable = base->context_vtable;
-
-   return pcp;
-
-error_exit:
-   free(pcp);
-
-   return NULL;
-}
-
-static void
 dri2DestroyDrawable(__GLXDRIdrawable *base)
 {
    struct dri2_screen *psc = (struct dri2_screen *) base->psc;
-   struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
    struct glx_display *dpyPriv = psc->base.display;
 
-   __glxHashDelete(dpyPriv->dri2Hash, pdraw->base.xDrawable);
-   driDestroyDrawable(pdraw->driDrawable);
+   __glxHashDelete(dpyPriv->dri2Hash, base->xDrawable);
+   driDestroyDrawable(base->dri_drawable);
 
    /* If it's a GLX 1.3 drawables, we can destroy the DRI2 drawable
     * now, as the application explicitly asked to destroy the GLX
@@ -265,10 +103,10 @@ dri2DestroyDrawable(__GLXDRIdrawable *base)
     * knowing when the application is done with it.  The server will
     * destroy the DRI2 drawable when it destroys the X drawable or the
     * client exits anyway. */
-   if (pdraw->base.xDrawable != pdraw->base.drawable)
-      DRI2DestroyDrawable(psc->base.dpy, pdraw->base.xDrawable);
+   if (base->xDrawable != base->drawable)
+      DRI2DestroyDrawable(psc->base.dpy, base->xDrawable);
 
-   free(pdraw);
+   free(base);
 }
 
 static __GLXDRIdrawable *
@@ -294,22 +132,22 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    pdraw->base.drawable = drawable;
    pdraw->base.psc = &psc->base;
    pdraw->bufferCount = 0;
-   pdraw->swap_interval = dri_get_initial_swap_interval(psc->driScreen);
+   pdraw->swap_interval = dri_get_initial_swap_interval(psc->base.frontend_screen);
    pdraw->have_back = 0;
 
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
    /* Create a new drawable */
-   pdraw->driDrawable =
-      driCreateNewDrawable(psc->driScreen, config->driConfig, pdraw);
+   pdraw->base.dri_drawable =
+      dri_create_drawable(psc->base.frontend_screen, config->driConfig, false, pdraw);
 
-   if (!pdraw->driDrawable) {
+   if (!pdraw->base.dri_drawable) {
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
       free(pdraw);
       return NULL;
    }
 
    if (__glxHashInsert(dpyPriv->dri2Hash, xDrawable, pdraw)) {
-      driDestroyDrawable(pdraw->driDrawable);
+      driDestroyDrawable(pdraw->base.dri_drawable);
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
       free(pdraw);
       return None;
@@ -319,8 +157,8 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
     * Make sure server has the same swap interval we do for the new
     * drawable.
     */
-   if (psc->vtable.setSwapInterval)
-      psc->vtable.setSwapInterval(&pdraw->base, pdraw->swap_interval);
+   if (base->driScreen.setSwapInterval)
+      base->driScreen.setSwapInterval(&pdraw->base, pdraw->swap_interval);
 
    return &pdraw->base;
 }
@@ -427,7 +265,7 @@ dri2Throttle(struct dri2_screen *psc,
 {
    __DRIcontext *ctx = dri2GetCurrentContext();
 
-   dri_throttle(ctx, draw->driDrawable, reason);
+   dri_throttle(ctx, draw->base.dri_drawable, reason);
 }
 
 /**
@@ -444,12 +282,12 @@ dri2Flush(struct dri2_screen *psc,
           enum __DRI2throttleReason throttle_reason)
 {
    if (ctx) {
-      dri_flush(ctx, draw->driDrawable, flags, throttle_reason);
+      dri_flush(ctx, draw->base.dri_drawable, flags, throttle_reason);
    } else {
       if (flags & __DRI2_FLUSH_CONTEXT)
          glFlush();
 
-      dri_flush_drawable(draw->driDrawable);
+      dri_flush_drawable(draw->base.dri_drawable);
 
       dri2Throttle(psc, draw, throttle_reason);
    }
@@ -516,7 +354,7 @@ dri2_copy_drawable(struct dri2_drawable *priv, int dest, int src)
    xrect.width = priv->width;
    xrect.height = priv->height;
 
-   dri_flush_drawable(priv->driDrawable);
+   dri_flush_drawable(priv->base.dri_drawable);
 
    region = XFixesCreateRegion(psc->base.dpy, &xrect, 1);
    DRI2CopyRegion(psc->base.dpy, priv->base.xDrawable, region, dest, src);
@@ -582,16 +420,11 @@ dri2FlushFrontBuffer(__DRIdrawable *driDrawable, void *loaderPrivate)
 
 
 static void
-dri2DestroyScreen(struct glx_screen *base)
+dri2DeinitScreen(struct glx_screen *base)
 {
    struct dri2_screen *psc = (struct dri2_screen *) base;
 
-   /* Free the direct rendering per screen data */
-   driDestroyScreen(psc->driScreen);
-   driDestroyConfigs(psc->driver_configs);
-   free(psc->driverName);
    close(psc->fd);
-   free(psc);
 }
 
 /**
@@ -761,7 +594,7 @@ dri2SetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    struct dri2_drawable *priv =  (struct dri2_drawable *) pdraw;
    struct dri2_screen *psc = (struct dri2_screen *) priv->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreen, interval))
+   if (!dri_valid_swap_interval(psc->base.frontend_screen, interval))
       return GLX_BAD_VALUE;
 
    xcb_dri2_swap_interval(c, priv->base.xDrawable, interval);
@@ -791,109 +624,19 @@ dri2InvalidateBuffers(Display *dpy, XID drawable)
 {
    __GLXDRIdrawable *pdraw =
       dri2GetGlxDrawableFromXDrawableId(dpy, drawable);
-   struct dri2_drawable *pdp = (struct dri2_drawable *) pdraw;
 
    if (!pdraw)
       return;
 
-   dri_invalidate_drawable(pdp->driDrawable);
-}
-
-static void
-dri2_bind_tex_image(__GLXDRIdrawable *base,
-		    int buffer, const int *attrib_list)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-   struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
-
-   if (pdraw != NULL) {
-      dri_set_tex_buffer2(gc->driContext,
-                          pdraw->base.textureTarget,
-                          pdraw->base.textureFormat,
-                          pdraw->driDrawable);
-   }
+   dri_invalidate_drawable(pdraw->dri_drawable);
 }
 
 static const struct glx_context_vtable dri2_context_vtable = {
-   .destroy             = dri2_destroy_context,
-   .bind                = dri2_bind_context,
-   .unbind              = dri2_unbind_context,
+   .destroy             = dri_destroy_context,
+   .bind                = dri_bind_context,
+   .unbind              = dri_unbind_context,
    .wait_gl             = dri2_wait_gl,
    .wait_x              = dri2_wait_x,
-};
-
-static void
-dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
-                   const char *driverName)
-{
-   const unsigned mask = driGetAPIMask(psc->driScreen);
-   const __DRIextension **extensions;
-   int i;
-
-   extensions = driGetExtensions(psc->driScreen);
-
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_make_current_read");
-
-   /*
-    * GLX_INTEL_swap_event is broken on the server side, where it's
-    * currently unconditionally enabled. This completely breaks
-    * systems running on drivers which don't support that extension.
-    * There's no way to test for its presence on this side, so instead
-    * of disabling it unconditionally, just disable it for drivers
-    * which are known to not support it.
-    *
-    * This was fixed in xserver 1.15.0 (190b03215), so now we only
-    * disable the broken driver.
-    */
-   if (strcmp(driverName, "vmwgfx") != 0) {
-      __glXEnableDirectExtension(&psc->base, "GLX_INTEL_swap_event");
-   }
-
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_profile");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_no_error");
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_no_config_context");
-
-   if ((mask & ((1 << __DRI_API_GLES) |
-                (1 << __DRI_API_GLES2) |
-                (1 << __DRI_API_GLES3))) != 0) {
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_EXT_create_context_es_profile");
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_EXT_create_context_es2_profile");
-   }
-
-   /* Extensions where we don't care about the extension struct */
-   for (i = 0; extensions[i]; i++) {
-      if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
-         __glXEnableDirectExtension(&psc->base,
-                                    "GLX_ARB_create_context_robustness");
-   }
-
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
-
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
-}
-
-static char *
-dri2_get_driver_name(struct glx_screen *glx_screen)
-{
-    struct dri2_screen *psc = (struct dri2_screen *)glx_screen;
-
-    return psc->driverName;
-}
-
-static const struct glx_screen_vtable dri2_screen_vtable = {
-   .create_context         = dri_common_create_context,
-   .create_context_attribs = dri2_create_context_attribs,
-   .query_renderer_integer = dri2_query_renderer_integer,
-   .query_renderer_string  = dri2_query_renderer_string,
-   .get_driver_name        = dri2_get_driver_name,
 };
 
 static const __DRIextension *loader_extensions[] = {
@@ -906,11 +649,8 @@ static const __DRIextension *loader_extensions[] = {
 struct glx_screen *
 dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred)
 {
-   const __DRIconfig **driver_configs;
-   const __DRIextension **extensions;
    struct dri2_screen *psc;
    __GLXDRIscreen *psp;
-   struct glx_config *configs = NULL, *visuals = NULL;
    char *driverName = NULL, *loader_driverName, *deviceName, *tmp;
    drm_magic_t magic;
 
@@ -920,10 +660,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 
    psc->fd = -1;
 
-   if (!glx_screen_init(&psc->base, screen, priv)) {
-      free(psc);
-      return NULL;
-   }
 
    if (!DRI2Connect(priv->dpy, RootWindow(priv->dpy, screen),
 		    &driverName, &deviceName)) {
@@ -957,42 +693,17 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
       free(driverName);
       driverName = loader_driverName;
    }
-   psc->driverName = driverName;
+   psc->base.driverName = driverName;
+   priv->driver = GLX_DRIVER_DRI2;
 
-   extensions = driOpenDriver(driverName, driver_name_is_inferred);
-   if (extensions == NULL)
-      goto handle_error;
-
-   psc->driScreen = driCreateNewScreen3(screen, psc->fd, loader_extensions, extensions,
-                                        &driver_configs, driver_name_is_inferred, psc);
-
-   if (psc->driScreen == NULL) {
+   if (!dri_screen_init(&psc->base, priv, screen, psc->fd, loader_extensions, driver_name_is_inferred)) {
       ErrorMessageF("glx: failed to create dri2 screen\n");
       goto handle_error;
    }
 
-   dri2BindExtensions(psc, priv, driverName);
-
-   configs = driConvertConfigs(psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
-
-   if (!configs || !visuals) {
-       ErrorMessageF("No matching fbConfigs or visuals found\n");
-       goto handle_error;
-   }
-
-   glx_config_destroy_list(psc->base.configs);
-   psc->base.configs = configs;
-   glx_config_destroy_list(psc->base.visuals);
-   psc->base.visuals = visuals;
-
-   psc->driver_configs = driver_configs;
-
-   psc->base.vtable = &dri2_screen_vtable;
    psc->base.context_vtable = &dri2_context_vtable;
-   psp = &psc->vtable;
-   psc->base.driScreen = psp;
-   psp->destroyScreen = dri2DestroyScreen;
+   psp = &psc->base.driScreen;
+   psp->deinitScreen = dri2DeinitScreen;
    psp->createDrawable = dri2CreateDrawable;
    psp->swapBuffers = dri2SwapBuffers;
    psp->getDrawableMSC = NULL;
@@ -1000,8 +711,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->waitForSBC = NULL;
    psp->setSwapInterval = NULL;
    psp->getSwapInterval = NULL;
-   psp->getBufferAge = NULL;
-   psp->bindTexImage = dri2_bind_tex_image;
 
    psp->getDrawableMSC = dri2DrawableGetMSC;
    psp->waitForMSC = dri2WaitForMSC;
@@ -1010,37 +719,11 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->getSwapInterval = dri2GetSwapInterval;
    psp->maxSwapInterval = INT_MAX;
 
-   __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
-
-   if (dri2GalliumConfigQuerys(psc->driScreen, "glx_extension_override",
-                                    &tmp) == 0)
-      __glXParseExtensionOverride(&psc->base, tmp);
-
-   if (dri2GalliumConfigQuerys(psc->driScreen,
-                                    "indirect_gl_extension_override",
-                                    &tmp) == 0)
-      __IndirectGlParseExtensionOverride(&psc->base, tmp);
-
-   {
-      uint8_t force = false;
-      if (dri2GalliumConfigQueryb(psc->driScreen, "force_direct_glx_context",
-                                    &force) == 0) {
-         psc->base.force_direct_context = force;
-      }
-
-      uint8_t invalid_glx_destroy_window = false;
-      if (dri2GalliumConfigQueryb(psc->driScreen,
-                                    "allow_invalid_glx_destroy_window",
-                                    &invalid_glx_destroy_window) == 0) {
-         psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
-      }
-   }
+   psc->base.can_EXT_texture_from_pixmap = true;
 
    /* DRI2 supports SubBuffer through DRI2CopyRegion, so it's always
     * available.*/
    psp->copySubBuffer = dri2CopySubBuffer;
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
 
    free(deviceName);
 
@@ -1049,7 +732,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    if (psc->show_fps_interval < 0)
       psc->show_fps_interval = 0;
 
-   priv->driver = GLX_DRIVER_DRI2;
 
    InfoMessageF("Using DRI2 for screen %d\n", screen);
 
@@ -1058,13 +740,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 handle_error:
    CriticalErrorMessageF("failed to load driver: %s\n", driverName);
 
-   if (configs)
-       glx_config_destroy_list(configs);
-   if (visuals)
-       glx_config_destroy_list(visuals);
-   if (psc->driScreen)
-       driDestroyScreen(psc->driScreen);
-   psc->driScreen = NULL;
    if (psc->fd >= 0)
       close(psc->fd);
 

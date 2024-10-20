@@ -25,6 +25,7 @@
 #include "anv_private.h"
 
 #include "common/xe/intel_engine.h"
+#include "common/xe/intel_queue.h"
 #include "common/intel_gem.h"
 
 #include "xe/anv_device.h"
@@ -149,53 +150,32 @@ anv_xe_create_engine(struct anv_device *device,
  * Wait for all previous DRM_IOCTL_XE_EXEC calls over the
  * drm_xe_exec_queue to complete.
  **/
-static void
+int
 anv_xe_wait_exec_queue_idle(struct anv_device *device, uint32_t exec_queue_id)
 {
-   struct drm_syncobj_create syncobj_create = {};
-   struct drm_xe_sync xe_sync = {
-      .type = DRM_XE_SYNC_TYPE_SYNCOBJ,
-      .flags = DRM_XE_SYNC_FLAG_SIGNAL,
-   };
-   struct drm_xe_exec exec = {
-      .exec_queue_id = exec_queue_id,
-      .num_syncs = 1,
-      .syncs = (uintptr_t)&xe_sync,
-      .num_batch_buffer = 0,
-   };
-   struct drm_syncobj_destroy syncobj_destroy = {};
    struct drm_syncobj_wait syncobj_wait = {
       .count_handles = 1,
       .timeout_nsec = INT64_MAX,
    };
-   int fd = device->fd;
-   int ret;
+   uint32_t syncobj;
+   int ret = xe_queue_get_syncobj_for_idle(device->fd, exec_queue_id, &syncobj);
 
-   ret = intel_ioctl(fd, DRM_IOCTL_SYNCOBJ_CREATE, &syncobj_create);
-   assert(ret == 0);
-   if (ret)
-      return;
-
-   xe_sync.handle = syncobj_create.handle;
-   /* Using the special exec.num_batch_buffer == 0 handling to get syncobj
-    * signaled when the last DRM_IOCTL_XE_EXEC is completed.
-    */
-   ret = intel_ioctl(fd, DRM_IOCTL_XE_EXEC, &exec);
    if (ret) {
-      /* exec_queue could have been banned, that is why it is being destroyed
-       * so no assert() here
-       */
-      goto error_exec;
+      assert(ret == -ECANCELED);
+      return ret;
    }
 
-   syncobj_wait.handles = (uintptr_t)&syncobj_create.handle;
-   ret = intel_ioctl(fd, DRM_IOCTL_SYNCOBJ_WAIT, &syncobj_wait);
+   syncobj_wait.handles = (uintptr_t)&syncobj;
+   ret = intel_ioctl(device->fd, DRM_IOCTL_SYNCOBJ_WAIT, &syncobj_wait);
    assert(ret == 0);
 
-error_exec:
-   syncobj_destroy.handle = syncobj_create.handle;
-   ret = intel_ioctl(fd, DRM_IOCTL_SYNCOBJ_DESTROY, &syncobj_destroy);
+   struct drm_syncobj_destroy syncobj_destroy = {
+      .handle = syncobj,
+   };
+   ret = intel_ioctl(device->fd, DRM_IOCTL_SYNCOBJ_DESTROY, &syncobj_destroy);
    assert(ret == 0);
+
+   return ret;
 }
 
 static void

@@ -76,7 +76,8 @@ anv_device_init_trivial_batch(struct anv_device *device)
    VkResult result = anv_device_alloc_bo(device, "trivial-batch", 4096,
                                          ANV_BO_ALLOC_MAPPED |
                                          ANV_BO_ALLOC_HOST_COHERENT |
-                                         ANV_BO_ALLOC_INTERNAL,
+                                         ANV_BO_ALLOC_INTERNAL |
+                                         ANV_BO_ALLOC_CAPTURE,
                                          0 /* explicit_address */,
                                          &device->trivial_batch_bo);
    if (result != VK_SUCCESS)
@@ -706,19 +707,39 @@ VkResult anv_CreateDevice(
       device->isl_dev.dummy_aux_address = device->dummy_aux_bo->offset;
    }
 
-   device->workaround_address = (struct anv_address) {
+   struct anv_address wa_addr = (struct anv_address) {
       .bo = device->workaround_bo,
-      .offset = align(intel_debug_write_identifiers(device->workaround_bo->map,
-                                                    device->workaround_bo->size,
-                                                    "Anv"), 32),
    };
 
-   device->workarounds.doom64_images = NULL;
+   wa_addr = anv_address_add_aligned(wa_addr,
+                                     intel_debug_write_identifiers(
+                                        device->workaround_bo->map,
+                                        device->workaround_bo->size,
+                                        "Anv"), 32);
 
-   device->rt_uuid_addr = anv_address_add(device->workaround_address, 8);
+   device->rt_uuid_addr = wa_addr;
    memcpy(device->rt_uuid_addr.bo->map + device->rt_uuid_addr.offset,
           physical_device->rt_uuid,
           sizeof(physical_device->rt_uuid));
+
+   /* Make sure the workaround address is the last one in the workaround BO,
+    * so that writes never overwrite other bits of data stored in the
+    * workaround BO.
+    */
+   wa_addr = anv_address_add_aligned(wa_addr,
+                                     sizeof(physical_device->rt_uuid), 64);
+   device->workaround_address = wa_addr;
+
+   /* Make sure we don't over the allocated BO. */
+   assert(device->workaround_address.offset < device->workaround_bo->size);
+   /* We also need 64B (maximum GRF size) from the workaround address (see
+    * TBIMR workaround)
+    */
+   assert((device->workaround_bo->size -
+           device->workaround_address.offset) >= 64);
+
+   device->workarounds.doom64_images = NULL;
+
 
    device->debug_frame_desc =
       intel_debug_get_identifier_block(device->workaround_bo->map,
@@ -1771,17 +1792,8 @@ VkResult anv_MapMemory2KHR(
       placed_addr = placed_info->pPlacedAddress;
    }
 
-   /* GEM will fail to map if the offset isn't 4k-aligned.  Round down. */
-   uint64_t map_offset;
-   if (!device->physical->info.has_mmap_offset)
-      map_offset = offset & ~4095ull;
-   else
-      map_offset = 0;
-   assert(offset >= map_offset);
-   uint64_t map_size = (offset + size) - map_offset;
-
-   /* Let's map whole pages */
-   map_size = align64(map_size, 4096);
+   uint64_t map_offset, map_size;
+   anv_sanitize_map_params(device, offset, size, &map_offset, &map_size);
 
    void *map;
    VkResult result = anv_device_map_bo(device, mem->bo, map_offset,

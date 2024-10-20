@@ -1010,13 +1010,10 @@ create_dcc_comp_to_single_pipeline(struct radv_device *device, bool is_msaa, VkP
 }
 
 static VkResult
-init_meta_clear_dcc_comp_to_single_state(struct radv_device *device, bool on_demand)
+init_meta_clear_dcc_comp_to_single_state(struct radv_device *device)
 {
    struct radv_meta_state *state = &device->meta_state;
    VkResult result;
-
-   if (on_demand)
-      return VK_SUCCESS;
 
    for (uint32_t i = 0; i < 2; i++) {
       result = create_dcc_comp_to_single_pipeline(device, !!i, &state->clear_dcc_comp_to_single_pipeline[i]);
@@ -1033,12 +1030,12 @@ radv_device_init_meta_clear_state(struct radv_device *device, bool on_demand)
    VkResult res;
    struct radv_meta_state *state = &device->meta_state;
 
-   res = init_meta_clear_dcc_comp_to_single_state(device, on_demand);
-   if (res != VK_SUCCESS)
-      return res;
-
    if (on_demand)
       return VK_SUCCESS;
+
+   res = init_meta_clear_dcc_comp_to_single_state(device);
+   if (res != VK_SUCCESS)
+      return res;
 
    res = create_clear_htile_mask_pipeline(device);
    if (res != VK_SUCCESS)
@@ -1291,7 +1288,7 @@ radv_clear_dcc_comp_to_single(struct radv_cmd_buffer *cmd_buffer, struct radv_im
                                                    .baseArrayLayer = range->baseArrayLayer,
                                                    .layerCount = layer_count},
                            },
-                           0, &(struct radv_image_view_extra_create_info){.disable_compression = true});
+                           &(struct radv_image_view_extra_create_info){.disable_compression = true});
 
       radv_meta_push_descriptor_set(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                                     device->meta_state.clear_dcc_comp_to_single_p_layout, 0, 1,
@@ -1441,7 +1438,7 @@ gfx8_get_fast_clear_parameters(struct radv_device *device, const struct radv_ima
        iview->vk.format == VK_FORMAT_B5G6R5_UNORM_PACK16)
       extra_channel = -1;
    else if (desc->layout == UTIL_FORMAT_LAYOUT_PLAIN) {
-      if (ac_alpha_is_on_msb(&pdev->info, vk_format_to_pipe_format(iview->vk.format)))
+      if (ac_alpha_is_on_msb(&pdev->info, radv_format_to_pipe_format(iview->vk.format)))
          extra_channel = desc->nr_channels - 1;
       else
          extra_channel = 0;
@@ -1541,7 +1538,7 @@ gfx11_get_fast_clear_parameters(struct radv_device *device, const struct radv_im
       uint32_t ui[4];
    } value;
    memset(&value, 0, sizeof(value));
-   util_format_pack_rgba(vk_format_to_pipe_format(iview->vk.format), &value, clear_value, 1);
+   util_format_pack_rgba(radv_format_to_pipe_format(iview->vk.format), &value, clear_value, 1);
 
    /* Check the cases where all components or bits are either all 0 or all 1. */
    bool all_bits_are_0 = true;
@@ -1967,7 +1964,7 @@ radv_clear_image_layer(struct radv_cmd_buffer *cmd_buffer, struct radv_image *im
                                                 .baseArrayLayer = range->baseArrayLayer,
                                                 .layerCount = layer_count},
                         },
-                        0, NULL);
+                        NULL);
 
    VkClearAttachment clear_att = {
       .aspectMask = range->aspectMask,
@@ -1995,6 +1992,7 @@ radv_clear_image_layer(struct radv_cmd_buffer *cmd_buffer, struct radv_image *im
 
    VkRenderingInfo rendering_info = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+      .flags = VK_RENDERING_INPUT_ATTACHMENT_NO_CONCURRENT_WRITES_BIT_MESA,
       .renderArea =
          {
             .offset = {0, 0},
@@ -2047,7 +2045,7 @@ radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
                                  .layerCount = vk_image_subresource_layer_count(&image->vk, range),
                               },
                         },
-                        0, NULL);
+                        NULL);
 
    VkClearRect clear_rect = {
       .rect =

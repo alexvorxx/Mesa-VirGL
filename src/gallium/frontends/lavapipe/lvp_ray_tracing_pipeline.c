@@ -502,7 +502,9 @@ lvp_lower_isec_intrinsic(nir_builder *b, nir_intrinsic_instr *instr, void *data)
    nir_variable *commit = nir_local_variable_create(b->impl, glsl_bool_type(), "commit");
    nir_store_var(b, commit, nir_imm_false(b), 0x1);
 
-   nir_push_if(b, nir_iand(b, nir_fge(b, t, nir_load_var(b, state->tmin)), nir_fge(b, nir_load_var(b, state->tmax), t)));
+   nir_def *in_range = nir_iand(b, nir_fge(b, t, nir_load_var(b, state->tmin)), nir_fge(b, nir_load_var(b, state->tmax), t));
+   nir_def *terminated = nir_iand(b, nir_load_var(b, state->terminate), nir_load_var(b, state->accept));
+   nir_push_if(b, nir_iand(b, in_range, nir_inot(b, terminated)));
    {
       nir_store_var(b, state->accept, nir_imm_true(b), 0x1);
 
@@ -1133,6 +1135,7 @@ lvp_create_ray_tracing_pipeline(VkDevice _device, const VkAllocationCallbacks *a
    pipeline->device = device;
    pipeline->layout = layout;
    pipeline->type = LVP_PIPELINE_RAY_TRACING;
+   pipeline->flags = vk_rt_pipeline_create_flags(create_info);
 
    pipeline->rt.stage_count = create_info->stageCount;
    pipeline->rt.group_count = create_info->groupCount;
@@ -1157,8 +1160,7 @@ lvp_create_ray_tracing_pipeline(VkDevice _device, const VkAllocationCallbacks *a
 
    lvp_init_ray_tracing_groups(pipeline, create_info);
 
-   VkPipelineCreateFlags2KHR create_flags = vk_rt_pipeline_create_flags(create_info);
-   if (!(create_flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR)) {
+   if (!(pipeline->flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR)) {
       lvp_compile_ray_tracing_pipeline(pipeline, create_info);
    }
 

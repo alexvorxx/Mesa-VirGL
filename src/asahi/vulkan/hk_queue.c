@@ -75,9 +75,11 @@ asahi_fill_cdm_command(struct hk_device *dev, struct hk_cs *cs,
       .encoder_ptr = cs->addr,
       .encoder_end = cs->addr + len,
 
-      .sampler_array = dev->samplers.table.bo->ptr.gpu,
+      .sampler_array = dev->samplers.table.bo->va->addr,
       .sampler_count = dev->samplers.table.alloc,
       .sampler_max = dev->samplers.table.alloc + 1,
+
+      .usc_base = dev->dev.shader_base,
 
       .encoder_id = agx_get_global_id(&dev->dev),
       .cmd_id = agx_get_global_id(&dev->dev),
@@ -85,9 +87,9 @@ asahi_fill_cdm_command(struct hk_device *dev, struct hk_cs *cs,
    };
 
    if (cs->scratch.cs.main || cs->scratch.cs.preamble) {
-      cmd->helper_arg = dev->scratch.cs.buf->ptr.gpu;
-      cmd->helper_cfg = cs->scratch.cs.preamble << 16;
-      cmd->helper_program = dev->dev.helper->ptr.gpu | 1;
+      cmd->helper_arg = dev->scratch.cs.buf->va->addr;
+      cmd->helper_cfg = cs->scratch.cs.preamble ? (1 << 16) : 0;
+      cmd->helper_program = dev->dev.helper->va->addr | 1;
    }
 }
 
@@ -95,18 +97,6 @@ static void
 asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
                        struct drm_asahi_cmd_render *c)
 {
-#if 0
-   bool clear_pipeline_textures =
-      agx_tilebuffer_spills(&batch->tilebuffer_layout);
-
-   for (unsigned i = 0; i < batch->key.nr_cbufs; ++i) {
-      struct pipe_surface *surf = batch->key.cbufs[i];
-
-      clear_pipeline_textures |=
-         surf && surf->texture && !(batch->clear & (PIPE_CLEAR_COLOR0 << i));
-   }
-
-#endif
    unsigned cmd_ta_id = agx_get_global_id(&dev->dev);
    unsigned cmd_3d_id = agx_get_global_id(&dev->dev);
    unsigned encoder_id = agx_get_global_id(&dev->dev);
@@ -118,6 +108,9 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
    c->cmd_3d_id = cmd_3d_id;
    c->cmd_ta_id = cmd_ta_id;
    c->ppp_ctrl = 0x202;
+
+   c->fragment_usc_base = dev->dev.shader_base;
+   c->vertex_usc_base = c->fragment_usc_base;
 
    c->fb_width = cs->cr.width;
    c->fb_height = cs->cr.height;
@@ -164,21 +157,15 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
 
    c->iogpu_unk_214 = cs->cr.iogpu_unk_214;
 
-#if 0
-   if (clear_pipeline_textures)
-      c->flags |= ASAHI_RENDER_SET_WHEN_RELOADING_Z_OR_S;
-   else
-      c->flags |= ASAHI_RENDER_NO_CLEAR_PIPELINE_TEXTURES;
-
-   if (zres && !(batch->clear & PIPE_CLEAR_DEPTH))
-      c->flags |= ASAHI_RENDER_SET_WHEN_RELOADING_Z_OR_S;
-
-   if (sres && !(batch->clear & PIPE_CLEAR_STENCIL))
-      c->flags |= ASAHI_RENDER_SET_WHEN_RELOADING_Z_OR_S;
-#endif
-
-   if (dev->dev.debug & AGX_DBG_NOCLUSTER)
+   if (dev->dev.debug & AGX_DBG_NOCLUSTER) {
       c->flags |= ASAHI_RENDER_NO_VERTEX_CLUSTERING;
+   } else {
+      /* XXX: We don't know what this does exactly, and the name is
+       * surely wrong. But it fixes dEQP-VK.memory.pipeline_barrier.* tests on
+       * G14C when clustering is enabled...
+       */
+      c->flags |= ASAHI_RENDER_NO_CLEAR_PIPELINE_TEXTURES;
+   }
 
 #if 0
    /* XXX is this for just MSAA+Z+S or MSAA+(Z|S)? */
@@ -195,8 +182,6 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
 
    c->ppp_multisamplectl = cs->ppp_multisamplectl;
    c->sample_size = cs->tib.sample_size_B;
-
-   /* XXX OR 0x80 with eMRT? */
    c->tib_blocks = ALIGN_POT(agx_tilebuffer_total_size(&cs->tib), 2048) / 2048;
 
    float tan_60 = 1.732051f;
@@ -223,7 +208,7 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
    c->scissor_array = cs->uploaded_scissor;
    c->depth_bias_array = cs->uploaded_zbias;
 
-   c->vertex_sampler_array = dev->samplers.table.bo->ptr.gpu;
+   c->vertex_sampler_array = dev->samplers.table.bo->va->addr;
    c->vertex_sampler_count = dev->samplers.table.alloc;
    c->vertex_sampler_max = dev->samplers.table.alloc + 1;
 
@@ -231,31 +216,22 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
    c->fragment_sampler_count = c->vertex_sampler_count;
    c->fragment_sampler_max = c->vertex_sampler_max;
 
-   c->visibility_result_buffer = dev->occlusion_queries.bo->ptr.gpu;
+   c->visibility_result_buffer = dev->occlusion_queries.bo->va->addr;
 
-   /* If a tile is empty, we do not want to process it, as the redundant
-    * roundtrip of memory-->tilebuffer-->memory wastes a tremendous amount of
-    * memory bandwidth. Any draw marks a tile as non-empty, so we only need to
-    * process empty tiles if the background+EOT programs have a side effect.
-    * This is the case exactly when there is an attachment we are clearing (some
-    * attachment A in clear and in resolve <==> non-empty intersection).
-    *
-    * This case matters a LOT for performance in workloads that split batches.
-    */
-   if (true /* TODO */)
+   if (cs->cr.process_empty_tiles)
       c->flags |= ASAHI_RENDER_PROCESS_EMPTY_TILES;
 
    if (cs->scratch.vs.main || cs->scratch.vs.preamble) {
       c->flags |= ASAHI_RENDER_VERTEX_SPILLS;
-      c->vertex_helper_arg = dev->scratch.vs.buf->ptr.gpu;
-      c->vertex_helper_cfg = cs->scratch.vs.preamble << 16;
-      c->vertex_helper_program = dev->dev.helper->ptr.gpu | 1;
+      c->vertex_helper_arg = dev->scratch.vs.buf->va->addr;
+      c->vertex_helper_cfg = cs->scratch.vs.preamble ? (1 << 16) : 0;
+      c->vertex_helper_program = dev->dev.helper->va->addr | 1;
    }
 
    if (cs->scratch.fs.main || cs->scratch.fs.preamble) {
-      c->fragment_helper_arg = dev->scratch.fs.buf->ptr.gpu;
-      c->fragment_helper_cfg = cs->scratch.fs.preamble << 16;
-      c->fragment_helper_program = dev->dev.helper->ptr.gpu | 1;
+      c->fragment_helper_arg = dev->scratch.fs.buf->va->addr;
+      c->fragment_helper_cfg = cs->scratch.fs.preamble ? (1 << 16) : 0;
+      c->fragment_helper_program = dev->dev.helper->va->addr | 1;
    }
 }
 
@@ -284,13 +260,27 @@ union drm_asahi_cmd {
    struct drm_asahi_cmd_render render;
 };
 
-/* TODO: I think it's 64. Can we query from the kernel? */
-#define MAX_COMMANDS_PER_SUBMIT (16)
+/* XXX: Batching multiple commands per submission is causing rare (7ppm) flakes
+ * on the CTS once lossless compression is enabled. This needs to be
+ * investigated before we can reenable this mechanism. We are likely missing a
+ * cache flush or barrier somewhere.
+ */
+static inline unsigned
+max_commands_per_submit(struct hk_device *dev)
+{
+   return HK_PERF(dev, BATCH) ? 64 : 1;
+}
 
 static VkResult
 queue_submit_single(struct agx_device *dev, struct drm_asahi_submit *submit)
 {
-   int ret = dev->ops.submit(dev, submit, 0);
+   /* Currently we don't use the result buffer or implicit sync */
+   struct agx_submit_virt virt = {
+      .vbo_res_id = 0,
+      .extres_count = 0,
+   };
+
+   int ret = dev->ops.submit(dev, submit, &virt);
 
    /* XXX: don't trap */
    if (ret) {
@@ -308,17 +298,17 @@ queue_submit_single(struct agx_device *dev, struct drm_asahi_submit *submit)
  * bounds.
  */
 static VkResult
-queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
+queue_submit_looped(struct hk_device *dev, struct drm_asahi_submit *submit)
 {
-   struct drm_asahi_command *cmds = (void *)submit->commands;
+   struct drm_asahi_command *cmds = (void *)(uintptr_t)submit->commands;
    unsigned commands_remaining = submit->command_count;
-   unsigned submitted_vdm = 0, submitted_cdm = 0;
+   unsigned submitted[DRM_ASAHI_SUBQUEUE_COUNT] = {0};
 
    while (commands_remaining) {
       bool first = commands_remaining == submit->command_count;
-      bool last = commands_remaining <= MAX_COMMANDS_PER_SUBMIT;
+      bool last = commands_remaining <= max_commands_per_submit(dev);
 
-      unsigned count = MIN2(commands_remaining, MAX_COMMANDS_PER_SUBMIT);
+      unsigned count = MIN2(commands_remaining, max_commands_per_submit(dev));
       commands_remaining -= count;
 
       assert(!last || commands_remaining == 0);
@@ -326,11 +316,12 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
 
       /* We need to fix up the barriers since barriers are ioctl-relative */
       for (unsigned i = 0; i < count; ++i) {
-         assert(cmds[i].barriers[0] >= submitted_vdm);
-         assert(cmds[i].barriers[1] >= submitted_cdm);
-
-         cmds[i].barriers[0] -= submitted_vdm;
-         cmds[i].barriers[1] -= submitted_cdm;
+         for (unsigned q = 0; q < DRM_ASAHI_SUBQUEUE_COUNT; ++q) {
+            if (cmds[i].barriers[q] != DRM_ASAHI_BARRIER_NONE) {
+               assert(cmds[i].barriers[q] >= submitted[q]);
+               cmds[i].barriers[q] -= submitted[q];
+            }
+         }
       }
 
       /* We can't signal the out-syncobjs until all prior work finishes. Since
@@ -339,11 +330,10 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
        * TODO: there might be a more performant way to do this.
        */
       if (last && !first) {
-         if (cmds[0].barriers[0] == DRM_ASAHI_BARRIER_NONE)
-            cmds[0].barriers[0] = 0;
-
-         if (cmds[0].barriers[1] == DRM_ASAHI_BARRIER_NONE)
-            cmds[0].barriers[1] = 0;
+         for (unsigned q = 0; q < DRM_ASAHI_SUBQUEUE_COUNT; ++q) {
+            if (cmds[0].barriers[q] == DRM_ASAHI_BARRIER_NONE)
+               cmds[0].barriers[q] = 0;
+         }
       }
 
       struct drm_asahi_submit submit_ioctl = {
@@ -358,15 +348,15 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
          .out_sync_count = last ? submit->out_sync_count : 0,
       };
 
-      VkResult result = queue_submit_single(dev, &submit_ioctl);
+      VkResult result = queue_submit_single(&dev->dev, &submit_ioctl);
       if (result != VK_SUCCESS)
          return result;
 
       for (unsigned i = 0; i < count; ++i) {
          if (cmds[i].cmd_type == DRM_ASAHI_CMD_COMPUTE)
-            submitted_cdm++;
+            submitted[DRM_ASAHI_SUBQUEUE_COMPUTE]++;
          else if (cmds[i].cmd_type == DRM_ASAHI_CMD_RENDER)
-            submitted_vdm++;
+            submitted[DRM_ASAHI_SUBQUEUE_RENDER]++;
          else
             unreachable("unknown subqueue");
       }
@@ -390,6 +380,9 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
 
       command_count += list_length(&cmdbuf->control_streams);
    }
+
+   perf_debug(dev, "Submitting %u control streams (%u command buffers)",
+              command_count, submit->command_buffer_count);
 
    if (command_count == 0)
       return queue_submit_empty(dev, queue, submit);
@@ -465,6 +458,13 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
          };
 
          if (cs->type == HK_CS_CDM) {
+            perf_debug(
+               dev,
+               "%u: Submitting CDM with %u API calls, %u dispatches, %u flushes",
+               i, cs->stats.calls, cs->stats.cmds, cs->stats.flushes);
+
+            assert(cs->stats.cmds > 0 || cs->stats.flushes > 0);
+
             cmd.cmd_type = DRM_ASAHI_CMD_COMPUTE;
             cmd.cmd_buffer_size = sizeof(struct drm_asahi_cmd_compute);
             nr_cdm++;
@@ -472,6 +472,10 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
             asahi_fill_cdm_command(dev, cs, &cmds_inner[cmd_it].compute);
          } else {
             assert(cs->type == HK_CS_VDM);
+            perf_debug(dev, "%u: Submitting VDM with %u API draws, %u draws", i,
+                       cs->stats.calls, cs->stats.cmds);
+            assert(cs->stats.cmds > 0 || cs->cr.process_empty_tiles);
+
             cmd.cmd_type = DRM_ASAHI_CMD_RENDER;
             cmd.cmd_buffer_size = sizeof(struct drm_asahi_cmd_render);
             nr_vdm++;
@@ -497,7 +501,7 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
          }
       }
 
-      agxdecode_image_heap(dev->dev.agxdecode, dev->images.bo->ptr.gpu,
+      agxdecode_image_heap(dev->dev.agxdecode, dev->images.bo->va->addr,
                            dev->images.alloc);
 
       agxdecode_next_frame();
@@ -515,10 +519,10 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
       .commands = (uint64_t)(uintptr_t)(cmds),
    };
 
-   if (command_count <= MAX_COMMANDS_PER_SUBMIT)
+   if (command_count <= max_commands_per_submit(dev))
       return queue_submit_single(&dev->dev, &submit_ioctl);
    else
-      return queue_submit_looped(&dev->dev, &submit_ioctl);
+      return queue_submit_looped(dev, &submit_ioctl);
 }
 
 static VkResult
@@ -537,6 +541,20 @@ hk_queue_submit(struct vk_queue *vk_queue, struct vk_queue_submit *submit)
    return VK_SUCCESS;
 }
 
+static uint32_t
+translate_priority(enum VkQueueGlobalPriorityKHR prio)
+{
+   /* clang-format off */
+   switch (prio) {
+   case VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR: return 0;
+   case VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR:     return 1;
+   case VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR:   return 2;
+   case VK_QUEUE_GLOBAL_PRIORITY_LOW_KHR:      return 3;
+   default: unreachable("Invalid VkQueueGlobalPriorityKHR");
+   }
+   /* clang-format on */
+}
+
 VkResult
 hk_queue_init(struct hk_device *dev, struct hk_queue *queue,
               const VkDeviceQueueCreateInfo *pCreateInfo,
@@ -550,13 +568,9 @@ hk_queue_init(struct hk_device *dev, struct hk_queue *queue,
    const VkDeviceQueueGlobalPriorityCreateInfoKHR *priority_info =
       vk_find_struct_const(pCreateInfo->pNext,
                            DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_KHR);
-   const enum VkQueueGlobalPriorityKHR global_priority =
+   const enum VkQueueGlobalPriorityKHR priority =
       priority_info ? priority_info->globalPriority
                     : VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR;
-
-   if (global_priority != VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR) {
-      return VK_ERROR_INITIALIZATION_FAILED;
-   }
 
    result = vk_queue_init(&queue->vk, &dev->vk, pCreateInfo, index_in_family);
    if (result != VK_SUCCESS)
@@ -568,7 +582,7 @@ hk_queue_init(struct hk_device *dev, struct hk_queue *queue,
                                             DRM_ASAHI_QUEUE_CAP_RENDER |
                                                DRM_ASAHI_QUEUE_CAP_BLIT |
                                                DRM_ASAHI_QUEUE_CAP_COMPUTE,
-                                            2);
+                                            translate_priority(priority));
 
    if (drmSyncobjCreate(dev->dev.fd, 0, &queue->drm.syncobj)) {
       mesa_loge("drmSyncobjCreate() failed %d\n", errno);

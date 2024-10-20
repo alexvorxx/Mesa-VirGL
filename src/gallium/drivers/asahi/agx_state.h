@@ -575,11 +575,17 @@ enum asahi_blit_clamp {
    ASAHI_BLIT_CLAMP_COUNT,
 };
 
+struct asahi_blit_key {
+   enum pipe_format src_format, dst_format;
+   bool array;
+   bool aligned;
+};
+
+DERIVE_HASH_TABLE(asahi_blit_key);
+
 struct asahi_blitter {
    bool active;
-
-   /* [clamp_type][is_array] */
-   void *blit_cs[ASAHI_BLIT_CLAMP_COUNT][2];
+   struct hash_table *blit_cs;
 
    /* [filter] */
    void *sampler[2];
@@ -706,6 +712,8 @@ struct agx_context {
    int in_sync_fd;
    uint32_t in_sync_obj;
    uint64_t flush_last_seqid;
+   uint64_t flush_my_seqid;
+   uint64_t flush_other_seqid;
 
    struct agx_scratch scratch_vs;
    struct agx_scratch scratch_fs;
@@ -1017,14 +1025,14 @@ agx_resource_valid(struct agx_resource *rsrc, int level)
 static inline void *
 agx_map_texture_cpu(struct agx_resource *rsrc, unsigned level, unsigned z)
 {
-   return ((uint8_t *)rsrc->bo->ptr.cpu) +
+   return ((uint8_t *)rsrc->bo->map) +
           ail_get_layer_level_B(&rsrc->layout, z, level);
 }
 
 static inline uint64_t
 agx_map_texture_gpu(struct agx_resource *rsrc, unsigned z)
 {
-   return rsrc->bo->ptr.gpu +
+   return rsrc->bo->va->addr +
           (uint64_t)ail_get_layer_offset_B(&rsrc->layout, z);
 }
 

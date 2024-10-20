@@ -97,6 +97,7 @@ namespace brw {
       }
 
       unsigned count() const { return def_count; }
+      unsigned ssa_count() const;
 
       void print_stats(const fs_visitor *) const;
 
@@ -142,12 +143,13 @@ namespace brw {
 class fs_builder;
 }
 
-struct shader_stats {
+struct brw_shader_stats {
    const char *scheduler_mode;
    unsigned promoted_constants;
    unsigned spill_count;
    unsigned fill_count;
    unsigned max_register_pressure;
+   unsigned non_ssa_registers_after_nir;
 };
 
 /** Register numbers for thread payload fields. */
@@ -219,6 +221,8 @@ struct cs_thread_payload : public thread_payload {
 
    brw_reg local_invocation_id[3];
 
+   brw_reg inline_parameter;
+
 protected:
    brw_reg subgroup_id_;
 };
@@ -228,7 +232,6 @@ struct task_mesh_thread_payload : public cs_thread_payload {
 
    brw_reg extended_parameter_0;
    brw_reg local_index;
-   brw_reg inline_parameter;
 
    brw_reg urb_output;
 
@@ -254,6 +257,19 @@ enum instruction_scheduler_mode {
 };
 
 class instruction_scheduler;
+
+enum brw_shader_phase {
+   BRW_SHADER_PHASE_INITIAL = 0,
+   BRW_SHADER_PHASE_AFTER_NIR,
+   BRW_SHADER_PHASE_AFTER_OPT_LOOP,
+   BRW_SHADER_PHASE_AFTER_EARLY_LOWERING,
+   BRW_SHADER_PHASE_AFTER_MIDDLE_LOWERING,
+   BRW_SHADER_PHASE_AFTER_LATE_LOWERING,
+   BRW_SHADER_PHASE_AFTER_REGALLOC,
+
+   /* Larger value than any other phase. */
+   BRW_SHADER_PHASE_INVALID,
+};
 
 /**
  * The fragment shader front-end.
@@ -363,6 +379,8 @@ public:
    brw_reg dual_src_output;
    int first_non_payload_grf;
 
+   enum brw_shader_phase phase;
+
    bool failed;
    char *fail_msg;
 
@@ -440,7 +458,7 @@ public:
    /* The API selected subgroup size */
    unsigned api_subgroup_size; /**< 0, 8, 16, 32 */
 
-   struct shader_stats shader_stats;
+   struct brw_shader_stats shader_stats;
 
    void debug_optimizer(const nir_shader *nir,
                         const char *pass_name,
@@ -486,7 +504,7 @@ public:
 
    void enable_debug(const char *shader_name);
    int generate_code(const cfg_t *cfg, int dispatch_width,
-                     struct shader_stats shader_stats,
+                     struct brw_shader_stats shader_stats,
                      const brw::performance &perf,
                      struct brw_compile_stats *stats,
                      unsigned max_polygons = 0);
@@ -592,6 +610,8 @@ int brw_get_subgroup_id_param_index(const intel_device_info *devinfo,
 
 void nir_to_brw(fs_visitor *s);
 
+void brw_shader_phase_update(fs_visitor &s, enum brw_shader_phase phase);
+
 #ifndef NDEBUG
 void brw_fs_validate(const fs_visitor &s);
 #else
@@ -630,6 +650,7 @@ bool brw_fs_lower_sends_overlapping_payload(fs_visitor &s);
 bool brw_fs_lower_simd_width(fs_visitor &s);
 bool brw_fs_lower_csel(fs_visitor &s);
 bool brw_fs_lower_sub_sat(fs_visitor &s);
+bool brw_fs_lower_subgroup_ops(fs_visitor &s);
 bool brw_fs_lower_uniform_pull_constant_loads(fs_visitor &s);
 void brw_fs_lower_vgrfs_to_fixed_grfs(fs_visitor &s);
 
@@ -642,10 +663,7 @@ bool brw_fs_opt_copy_propagation(fs_visitor &s);
 bool brw_fs_opt_copy_propagation_defs(fs_visitor &s);
 bool brw_fs_opt_cse_defs(fs_visitor &s);
 bool brw_fs_opt_dead_code_eliminate(fs_visitor &s);
-bool brw_fs_opt_dead_control_flow_eliminate(fs_visitor &s);
 bool brw_fs_opt_eliminate_find_live_channel(fs_visitor &s);
-bool brw_fs_opt_peephole_sel(fs_visitor &s);
-bool brw_fs_opt_predicated_break(fs_visitor &s);
 bool brw_fs_opt_register_coalesce(fs_visitor &s);
 bool brw_fs_opt_remove_extra_rounding_modes(fs_visitor &s);
 bool brw_fs_opt_remove_redundant_halts(fs_visitor &s);

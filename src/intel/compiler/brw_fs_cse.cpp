@@ -119,6 +119,7 @@ is_expression(const fs_visitor *v, const fs_inst *const inst)
    case SHADER_OPCODE_INT_REMAINDER:
    case SHADER_OPCODE_SIN:
    case SHADER_OPCODE_COS:
+   case SHADER_OPCODE_LOAD_SUBGROUP_INVOCATION:
       return true;
    case SHADER_OPCODE_LOAD_PAYLOAD:
       return !is_coalescing_payload(v->alloc, inst);

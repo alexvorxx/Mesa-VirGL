@@ -1571,10 +1571,10 @@ static bool
 has_immediate(const struct intel_device_info *devinfo, const brw_inst *inst,
               enum brw_reg_type *type)
 {
-   if (brw_inst_src0_reg_file(devinfo, inst) == BRW_IMMEDIATE_VALUE) {
+   if (brw_inst_src0_reg_file(devinfo, inst) == IMM) {
       *type = brw_inst_src0_type(devinfo, inst);
       return *type != BRW_TYPE_INVALID;
-   } else if (brw_inst_src1_reg_file(devinfo, inst) == BRW_IMMEDIATE_VALUE) {
+   } else if (brw_inst_src1_reg_file(devinfo, inst) == IMM) {
       *type = brw_inst_src1_type(devinfo, inst);
       return *type != BRW_TYPE_INVALID;
    }
@@ -1596,7 +1596,7 @@ precompact(const struct brw_isa_info *isa, brw_inst inst)
     * sequential elements, so convert to those before compacting.
     */
    if (devinfo->verx10 >= 125) {
-      if (brw_inst_src0_reg_file(devinfo, &inst) == BRW_GENERAL_REGISTER_FILE &&
+      if (brw_inst_src0_reg_file(devinfo, &inst) == FIXED_GRF &&
           brw_inst_src0_vstride(devinfo, &inst) > BRW_VERTICAL_STRIDE_1 &&
           brw_inst_src0_vstride(devinfo, &inst) == (brw_inst_src0_width(devinfo, &inst) + 1) &&
           brw_inst_src0_hstride(devinfo, &inst) == BRW_HORIZONTAL_STRIDE_1) {
@@ -1605,7 +1605,7 @@ precompact(const struct brw_isa_info *isa, brw_inst inst)
          brw_inst_set_src0_hstride(devinfo, &inst, BRW_HORIZONTAL_STRIDE_0);
       }
 
-      if (brw_inst_src1_reg_file(devinfo, &inst) == BRW_GENERAL_REGISTER_FILE &&
+      if (brw_inst_src1_reg_file(devinfo, &inst) == FIXED_GRF &&
           brw_inst_src1_vstride(devinfo, &inst) > BRW_VERTICAL_STRIDE_1 &&
           brw_inst_src1_vstride(devinfo, &inst) == (brw_inst_src1_width(devinfo, &inst) + 1) &&
           brw_inst_src1_hstride(devinfo, &inst) == BRW_HORIZONTAL_STRIDE_1) {
@@ -1615,7 +1615,7 @@ precompact(const struct brw_isa_info *isa, brw_inst inst)
       }
    }
 
-   if (brw_inst_src0_reg_file(devinfo, &inst) != BRW_IMMEDIATE_VALUE)
+   if (brw_inst_src0_reg_file(devinfo, &inst) != IMM)
       return inst;
 
    /* The Bspec's section titled "Non-present Operands" claims that if src0
@@ -2441,9 +2441,9 @@ brw_compact_instructions(struct brw_codegen *p, int start_offset,
          if (brw_inst_cmpt_control(devinfo, insn))
             break;
 
-         if (brw_inst_dst_reg_file(devinfo, insn) == BRW_ARCHITECTURE_REGISTER_FILE &&
+         if (brw_inst_dst_reg_file(devinfo, insn) == ARF &&
              brw_inst_dst_da_reg_nr(devinfo, insn) == BRW_ARF_IP) {
-            assert(brw_inst_src1_reg_file(devinfo, insn) == BRW_IMMEDIATE_VALUE);
+            assert(brw_inst_src1_reg_file(devinfo, insn) == IMM);
 
             int shift = 3;
             int jump_compacted = brw_inst_imm_d(devinfo, insn) >> shift;

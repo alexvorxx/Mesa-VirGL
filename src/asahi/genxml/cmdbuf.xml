@@ -938,8 +938,7 @@
     <field name="Instance stride present" size="1" start="25" type="bool"/>
 
     <field name="Indirect present" size="1" start="26" type="bool"/>
-    <!-- Present for both indirect and direct -->
-    <field name="Unknown present" size="1" start="28" type="bool"/>
+    <field name="Factor buffer size present" size="1" start="28" type="bool"/>
 
     <field name="Unknown 1" size="1" start="28" type="hex"/> <!-- 1 -->
     <field name="Block Type" size="3" start="29" type="VDM Block Type" default="Tessellate"/>
@@ -979,8 +978,8 @@
     <field name="Size" size="32" start="2:0" type="uint"/>
   </struct>
 
-  <struct name="VDM Tessellate: Unknown" size="4">
-    <field name="Unknown 7" size="32" start="0" type="hex"/> <!-- 3F -->
+  <struct name="VDM Tessellate: Factor buffer size" size="4">
+    <field name="Size (words)" size="32" start="0" type="uint" modifier="minus(1)"/>
   </struct>
 
   <struct name="VDM Stream Terminate" size="32">

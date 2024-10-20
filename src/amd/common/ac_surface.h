@@ -78,6 +78,7 @@ enum radeon_micro_mode
 #define RADEON_SURF_NO_STENCIL_ADJUST     (1ull << 35)
 #define RADEON_SURF_PREFER_4K_ALIGNMENT   (1ull << 36)
 #define RADEON_SURF_PREFER_64K_ALIGNMENT  (1ull << 37)
+#define RADEON_SURF_VIEW_3D_AS_2D_ARRAY   (1ull << 38) /* GFX9+ */
 
 enum radeon_enc_hevc_surface_alignment
 {
@@ -153,7 +154,7 @@ enum gfx9_resource_type
 
 struct gfx9_surf_meta_flags {
    uint8_t rb_aligned : 1;   /* optimal for RBs */
-   uint8_t pipe_aligned : 1; /* optimal for TC */
+   uint8_t pipe_aligned : 1; /* optimal for L2 */
    uint8_t independent_64B_blocks : 1;
    uint8_t independent_128B_blocks : 1;
    uint8_t max_compressed_block_size : 2;

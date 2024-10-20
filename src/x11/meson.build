@@ -3,7 +3,7 @@
 
 inc_loader_x11 = include_directories('.')
 
-if with_platform_x11 and with_dri3
+if with_platform_x11 and with_dri_platform == 'drm'
   libloader_x11 = static_library(
     'loader_x11',
     'loader_x11.c',

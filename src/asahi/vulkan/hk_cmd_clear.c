@@ -4,8 +4,8 @@
  * Copyright 2022-2023 Collabora Ltd. and Red Hat Inc.
  * SPDX-License-Identifier: MIT
  */
-#include "agx_formats.h"
 #include "hk_cmd_buffer.h"
+#include "layout.h"
 
 #include "hk_device.h"
 #include "hk_entrypoints.h"
@@ -42,6 +42,10 @@ clear_image(struct hk_cmd_buffer *cmd, struct hk_image *image,
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
    ASSERTED VkResult result;
 
+   /* TODO: Use fast clear */
+   bool compressed = ail_is_compressed(&image->planes[0].layout);
+   perf_debug(dev, "Image clear (%scompressed)", compressed ? "" : "un");
+
    for (uint32_t r = 0; r < range_count; r++) {
       const uint32_t level_count =
          vk_image_subresource_level_count(&image->vk, &ranges[r]);
@@ -70,7 +74,7 @@ clear_image(struct hk_cmd_buffer *cmd, struct hk_image *image,
          };
          const VkImageViewCreateInfo view_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .flags = VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+            .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
             .pNext = &view_usage_info,
             .image = hk_image_to_handle(image),
             .viewType = render_view_type(image->vk.image_type, layer_count),
@@ -161,10 +165,10 @@ hk_CmdClearColorImage(VkCommandBuffer commandBuffer, VkImage _image,
    if (vk_format == VK_FORMAT_R64_UINT || vk_format == VK_FORMAT_R64_SINT)
       vk_format = VK_FORMAT_R32G32_UINT;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = hk_format_to_pipe_format(vk_format);
    assert(p_format != PIPE_FORMAT_NONE);
 
-   if (!agx_pixel_format[p_format].renderable) {
+   if (!ail_pixel_format[p_format].renderable) {
       memset(&clear_value, 0, sizeof(clear_value));
       util_format_pack_rgba(p_format, clear_value.color.uint32, pColor->uint32,
                             1);

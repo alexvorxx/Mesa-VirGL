@@ -44,3 +44,8 @@ spec@arb_tessellation_shader@arb_tessellation_shader-tes-gs-max-output -small -s
 KHR-GL46.sparse_buffer_tests.BufferStorageTest
 
 spec@ext_texture_lod_bias@lodbias
+
+# uprev Piglit in Mesa
+dEQP-GLES3.functional.fbo.multiview.samples_1
+spec@!opengl 1.1@max-texture-size
+

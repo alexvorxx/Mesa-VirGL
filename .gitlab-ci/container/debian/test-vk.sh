@@ -71,29 +71,9 @@ apt-get update
 apt-get install -y --no-remove --no-install-recommends \
       "${DEPS[@]}" "${EPHEMERAL[@]}"
 
-############### Install DXVK
-
-. .gitlab-ci/container/setup-wine.sh "/dxvk-wine64"
-. .gitlab-ci/container/install-wine-dxvk.sh
-
-############### Install apitrace binaries for wine
-
-. .gitlab-ci/container/install-wine-apitrace.sh
-# Add the apitrace path to the registry
-wine \
-    reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment" \
-    /v Path \
-    /t REG_EXPAND_SZ \
-    /d "C:\windows\system32;C:\windows;C:\windows\system32\wbem;Z:\apitrace-msvc-win64\bin" \
-    /f
-
 ############### Building ...
 
 . .gitlab-ci/container/container_pre_build.sh
-
-############### Build parallel-deqp-runner's hang-detection tool
-
-. .gitlab-ci/container/build-hang-detection.sh
 
 ############### Build piglit replayer
 # We don't run any _piglit_ Vulkan tests in the containers.

@@ -33,13 +33,17 @@
 #endif
 
 #include "loader_x11.h"
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
 #include "loader_dri3_helper.h"
 #endif
 
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
 #include <xcb/glx.h>
+#include "dri_util.h"
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+#include <dlfcn.h>
+#endif
 
 #define __GLX_MIN_CONFIG_PROPS	18
 #define __GLX_EXT_CONFIG_PROPS	32
@@ -136,9 +140,8 @@ __glXWireToEvent(Display *dpy, XEvent *event, xEvent *wire)
    {
       GLXPbufferClobberEvent *aevent = (GLXPbufferClobberEvent *)event;
       xGLXPbufferClobberEvent *awire = (xGLXPbufferClobberEvent *)wire;
-      aevent->event_type = awire->type;
-      aevent->serial = awire->sequenceNumber;
       aevent->event_type = awire->event_type;
+      aevent->serial = awire->sequenceNumber;
       aevent->draw_type = awire->draw_type;
       aevent->drawable = awire->drawable;
       aevent->buffer_mask = awire->buffer_mask;
@@ -236,14 +239,12 @@ FreeScreenConfigs(struct glx_display * priv)
       glx_screen_cleanup(psc);
 
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
-      if (psc->driScreen) {
-         psc->driScreen->destroyScreen(psc);
-      } else {
-	 free(psc);
-      }
-#else
-      free(psc);
+      if (psc->driScreen.deinitScreen)
+         psc->driScreen.deinitScreen(psc);
+      /* Free the direct rendering per screen data */
+      driDestroyScreen(psc->frontend_screen);
 #endif
+      free(psc);
    }
    free((char *) priv->screens);
    priv->screens = NULL;
@@ -739,10 +740,114 @@ glx_screen_cleanup(struct glx_screen *psc)
       glx_config_destroy_list(psc->visuals);
       psc->visuals = NULL;   /* NOTE: just for paranoia */
    }
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+   if (psc->driver_configs) {
+      driDestroyConfigs(psc->driver_configs);
+      psc->driver_configs = NULL;
+   }
+#endif
    free((char *) psc->serverGLXexts);
    free((char *) psc->serverGLXvendor);
    free((char *) psc->serverGLXversion);
+   free(psc->driverName);
 }
+
+static void
+bind_extensions(struct glx_screen *psc, const char *driverName)
+{
+   unsigned mask;
+
+   if (psc->display->driver != GLX_DRIVER_SW) {
+      __glXEnableDirectExtension(psc, "GLX_EXT_buffer_age");
+      __glXEnableDirectExtension(psc, "GLX_EXT_swap_control");
+      __glXEnableDirectExtension(psc, "GLX_SGI_swap_control");
+      __glXEnableDirectExtension(psc, "GLX_MESA_swap_control");
+      __glXEnableDirectExtension(psc, "GLX_OML_sync_control");
+      __glXEnableDirectExtension(psc, "GLX_SGI_video_sync");
+      // for zink this needs to check whether RELAXED is available
+      if (psc->display->driver == GLX_DRIVER_DRI3)
+         __glXEnableDirectExtension(psc, "GLX_EXT_swap_control_tear");
+   }
+   if (psc->display->driver != GLX_DRIVER_ZINK_YES)
+      __glXEnableDirectExtension(psc, "GLX_MESA_copy_sub_buffer");
+   __glXEnableDirectExtension(psc, "GLX_SGI_make_current_read");
+
+   if (psc->can_EXT_texture_from_pixmap)
+      __glXEnableDirectExtension(psc, "GLX_EXT_texture_from_pixmap");
+
+   /*
+    * GLX_INTEL_swap_event is broken on the server side, where it's
+    * currently unconditionally enabled. This completely breaks
+    * systems running on drivers which don't support that extension.
+    * There's no way to test for its presence on this side, so instead
+    * of disabling it unconditionally, just disable it for drivers
+    * which are known to not support it.
+    *
+    * This was fixed in xserver 1.15.0 (190b03215), so now we only
+    * disable the broken driver.
+    */
+   if (!driverName || strcmp(driverName, "vmwgfx") != 0) {
+      __glXEnableDirectExtension(psc, "GLX_INTEL_swap_event");
+   }
+
+   mask = driGetAPIMask(psc->frontend_screen);
+
+   __glXEnableDirectExtension(psc, "GLX_ARB_create_context");
+   __glXEnableDirectExtension(psc, "GLX_ARB_create_context_profile");
+   __glXEnableDirectExtension(psc, "GLX_ARB_create_context_no_error");
+   __glXEnableDirectExtension(psc, "GLX_EXT_no_config_context");
+
+   if ((mask & ((1 << __DRI_API_GLES) |
+                (1 << __DRI_API_GLES2) |
+                (1 << __DRI_API_GLES3))) != 0) {
+      __glXEnableDirectExtension(psc,
+                                 "GLX_EXT_create_context_es_profile");
+      __glXEnableDirectExtension(psc,
+                                 "GLX_EXT_create_context_es2_profile");
+   }
+
+   if (dri_get_screen_param(psc->frontend_screen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
+      __glXEnableDirectExtension(psc,
+                                 "GLX_ARB_create_context_robustness");
+
+   __glXEnableDirectExtension(psc, "GLX_ARB_context_flush_control");
+   __glXEnableDirectExtension(psc, "GLX_MESA_query_renderer");
+
+   __glXEnableDirectExtension(psc, "GLX_MESA_gl_interop");
+
+   char *tmp;
+   if (dri2GalliumConfigQuerys(psc->frontend_screen, "glx_extension_override",
+                                    &tmp) == 0)
+      __glXParseExtensionOverride(psc, tmp);
+
+   if (dri2GalliumConfigQuerys(psc->frontend_screen,
+                                    "indirect_gl_extension_override",
+                                    &tmp) == 0)
+      __IndirectGlParseExtensionOverride(psc, tmp);
+
+   {
+      uint8_t force = false;
+      if (dri2GalliumConfigQueryb(psc->frontend_screen, "force_direct_glx_context",
+                                    &force) == 0) {
+         psc->force_direct_context = force;
+      }
+
+      uint8_t invalid_glx_destroy_window = false;
+      if (dri2GalliumConfigQueryb(psc->frontend_screen,
+                                    "allow_invalid_glx_destroy_window",
+                                    &invalid_glx_destroy_window) == 0) {
+         psc->allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
+      }
+
+      uint8_t keep_native_window_glx_drawable = false;
+      if (dri2GalliumConfigQueryb(psc->frontend_screen,
+                                    "keep_native_window_glx_drawable",
+                                    &keep_native_window_glx_drawable) == 0) {
+         psc->keep_native_window_glx_drawable = keep_native_window_glx_drawable;
+      }
+   }
+}
+
 
 /*
 ** Allocate the memory for the per screen configs for each screen.
@@ -768,7 +873,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
       psc = NULL;
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
 #if defined(GLX_USE_DRM)
-#if defined(HAVE_DRI3)
       if (glx_driver & GLX_DRIVER_DRI3) {
          bool use_zink;
          psc = dri3_create_screen(i, priv, driver_name_is_inferred, &use_zink);
@@ -778,7 +882,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
             driver_name_is_inferred = false;
          }
       }
-#endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (psc == NULL && glx_driver & GLX_DRIVER_DRI2 && dri2CheckSupport(dpy)) {
 	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
@@ -820,6 +923,8 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 
       if(indirect) /* Load extensions required only for indirect glx */
          glxSendClientInfo(priv, i);
+      else if (priv->driver != GLX_DRIVER_WINDOWS)
+         bind_extensions(psc, psc->driverName);
    }
    if (zink && !screen_count)
       return GL_FALSE;
@@ -908,10 +1013,9 @@ __glXInitialize(Display * dpy)
 #if defined(GLX_USE_DRM)
    bool dri3_err = false;
    if (glx_direct && glx_accel && dri3)
-      dpyPriv->has_multibuffer = x11_dri3_check_multibuffer(XGetXCBConnection(dpy), &dri3_err);
+      dpyPriv->has_multibuffer = x11_dri3_check_multibuffer(XGetXCBConnection(dpy), &dri3_err, &dpyPriv->has_explicit_modifiers);
    if (glx_direct && glx_accel &&
        (!(glx_driver & GLX_DRIVER_ZINK_YES) || !kopper)) {
-#if defined(HAVE_DRI3)
       if (dri3) {
          /* dri3 is tried as long as this doesn't error; whether modifiers work is not relevant */
          if (!dri3_err) {
@@ -921,7 +1025,6 @@ __glXInitialize(Display * dpy)
                glx_driver |= GLX_DRIVER_ZINK_INFER;
          }
       }
-#endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (!debug_get_bool_option("LIBGL_DRI2_DISABLE", false))
          glx_driver |= GLX_DRIVER_DRI2;
@@ -936,7 +1039,7 @@ __glXInitialize(Display * dpy)
    if (glx_direct)
       glx_driver |= GLX_DRIVER_SW;
 
-   if (!dpyPriv->has_multibuffer && glx_accel && !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
+   if (!dpyPriv->has_explicit_modifiers && glx_accel && !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
       if (glx_driver & GLX_DRIVER_ZINK_YES) {
          /* only print error if zink was explicitly requested */
          CriticalErrorMessageF("DRI3 not available\n");
@@ -950,6 +1053,22 @@ __glXInitialize(Display * dpy)
 #ifdef GLX_USE_WINDOWSGL
    if (glx_direct && glx_accel)
       glx_driver |= GLX_DRIVER_WINDOWS;
+#else
+#ifndef RTLD_NOW
+#define RTLD_NOW 0
+#endif
+#ifndef RTLD_GLOBAL
+#define RTLD_GLOBAL 0
+#endif
+
+#ifndef GL_LIB_NAME
+#define GL_LIB_NAME "libGL.so.1"
+#endif
+
+   void *glhandle = dlopen(GL_LIB_NAME, RTLD_NOW | RTLD_GLOBAL);
+   if (glhandle)
+      dlclose(glhandle);
+
 #endif
 #endif /* GLX_DIRECT_RENDERING && !GLX_USE_APPLEGL */
 

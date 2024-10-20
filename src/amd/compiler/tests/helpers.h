@@ -66,7 +66,7 @@ bool
 setup_nir_cs(enum amd_gfx_level gfx_level, gl_shader_stage stage = MESA_SHADER_COMPUTE,
              enum radeon_family family = CHIP_UNKNOWN, const char* subvariant = "");
 
-void finish_program(aco::Program* program, bool endpgm = true);
+void finish_program(aco::Program* program, bool endpgm = true, bool dominance = false);
 void finish_validator_test();
 void finish_opt_test();
 void finish_setup_reduce_temp_test();

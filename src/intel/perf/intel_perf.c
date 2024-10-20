@@ -342,14 +342,6 @@ compute_topology_builtins(struct intel_perf_config *perf)
    perf->sys_vars.n_eu_sub_slices = intel_device_info_subslice_total(devinfo);
    perf->sys_vars.n_eus = intel_device_info_eu_total(devinfo);
 
-   /* Xe2+ OA equations expects actual EU count but KMD returns legacy EU
-    * count.
-    */
-   if (devinfo->verx10 >= 200) {
-      perf->sys_vars.n_eu_slice0123 /= 2;
-      perf->sys_vars.n_eus /= 2;
-   }
-
    /* The subslice mask builtin contains bits for all slices. Prior to Gfx11
     * it had groups of 3bits for each slice, on Gfx11 and above it's 8bits for
     * each slice.
@@ -479,6 +471,8 @@ get_register_queries_function(const struct intel_device_info *devinfo)
       return NULL;
    case INTEL_PLATFORM_LNL:
       return intel_oa_register_queries_lnl;
+   case INTEL_PLATFORM_BMG:
+      return intel_oa_register_queries_bmg;
    default:
       return NULL;
    }
@@ -927,11 +921,6 @@ intel_perf_get_counters_passes(struct intel_perf_config *perf,
    BITSET_ZERO(queries_mask);
 
    get_passes_mask(perf, counter_indices, counter_indices_count, queries_mask);
-   ASSERTED uint32_t n_passes = BITSET_COUNT(queries_mask);
-
-   struct intel_perf_query_info **pass_array = calloc(perf->n_queries,
-                                                      sizeof(*pass_array));
-   uint32_t n_written_passes = 0;
 
    for (uint32_t i = 0; i < counter_indices_count; i++) {
       assert(counter_indices[i] < perf->n_counters);
@@ -953,22 +942,7 @@ intel_perf_get_counters_passes(struct intel_perf_config *perf,
       assert(query_idx != UINT32_MAX);
 
       counter_pass[i].query = &perf->queries[query_idx];
-
-      uint32_t pass_idx = UINT32_MAX;
-      for (uint32_t p = 0; p < n_written_passes; p++) {
-         if (pass_array[p] == counter_pass[i].query) {
-            pass_idx = p;
-            break;
-         }
-      }
-
-      if (pass_idx == UINT32_MAX)
-         pass_array[n_written_passes] = counter_pass[i].query;
-
-      assert(n_written_passes <= n_passes);
    }
-
-   free(pass_array);
 }
 
 /* Accumulate 32bits OA counters */

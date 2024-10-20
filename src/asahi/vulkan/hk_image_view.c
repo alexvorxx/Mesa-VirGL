@@ -18,6 +18,7 @@
 
 #include "layout.h"
 #include "vk_format.h"
+#include "vk_meta.h"
 
 enum hk_desc_usage {
    HK_DESC_USAGE_SAMPLED,
@@ -141,9 +142,9 @@ struct hk_3d {
 static struct hk_3d
 view_denominator(struct hk_image_view *view)
 {
-   enum pipe_format view_format = vk_format_to_pipe_format(view->vk.format);
+   enum pipe_format view_format = hk_format_to_pipe_format(view->vk.format);
    enum pipe_format img_format =
-      vk_format_to_pipe_format(view->vk.image->format);
+      hk_format_to_pipe_format(view->vk.image->format);
 
    if (util_format_is_compressed(view_format)) {
       /*
@@ -184,7 +185,7 @@ format_for_plane(struct hk_image_view *view, unsigned view_plane)
    VkFormat plane_format =
       ycbcr_info ? ycbcr_info->planes[view_plane].format : view->vk.format;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(plane_format);
+   enum pipe_format p_format = hk_format_to_pipe_format(plane_format);
    if (view->vk.aspects == VK_IMAGE_ASPECT_STENCIL_BIT)
       p_format = get_stencil_format(p_format);
 
@@ -255,8 +256,8 @@ pack_texture(struct hk_image_view *view, unsigned view_plane,
       cfg.dimension = translate_image_view_type(
          view->vk.view_type, view->vk.image->samples > 1, layers > 1, usage);
       cfg.layout = agx_translate_layout(layout->tiling);
-      cfg.channels = agx_pixel_format[p_format].channels;
-      cfg.type = agx_pixel_format[p_format].type;
+      cfg.channels = ail_pixel_format[p_format].channels;
+      cfg.type = ail_pixel_format[p_format].type;
       cfg.srgb = util_format_is_srgb(p_format);
 
       cfg.swizzle_r = agx_channel_from_pipe(out_swizzle[0]);
@@ -357,8 +358,8 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
       cfg.dimension =
          translate_image_view_type(view->vk.view_type, msaa, layers > 1, usage);
       cfg.layout = agx_translate_layout(layout->tiling);
-      cfg.channels = agx_pixel_format[p_format].channels;
-      cfg.type = agx_pixel_format[p_format].type;
+      cfg.channels = ail_pixel_format[p_format].channels;
+      cfg.type = ail_pixel_format[p_format].type;
       cfg.srgb = util_format_is_srgb(p_format);
 
       assert(desc->nr_channels >= 1 && desc->nr_channels <= 4);
@@ -442,7 +443,7 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
             cfg.samples = agx_translate_sample_count(image->vk.samples);
       }
 
-      if (ail_is_compressed(layout)) {
+      if (ail_is_compressed(layout) && usage != HK_DESC_USAGE_EMRT) {
          cfg.compressed_1 = true;
          cfg.extended = true;
 
@@ -453,7 +454,9 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
       /* When the descriptor isn't extended architecturally, we use
        * the last 8 bytes as a sideband to accelerate image atomics.
        */
-      if (!cfg.extended && layout->writeable_image) {
+      if (!cfg.extended &&
+          (layout->writeable_image || usage == HK_DESC_USAGE_EMRT)) {
+
          if (msaa) {
             assert(denom.x == 1 && "no MSAA of block-compressed");
 
@@ -466,7 +469,7 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
 
          cfg.sample_count_log2_sw = util_logbase2(image->vk.samples);
 
-         if (layout->tiling == AIL_TILING_TWIDDLED) {
+         if (layout->tiling != AIL_TILING_LINEAR) {
             struct ail_tile tile_size = layout->tilesize_el[level];
             cfg.tile_width_sw = tile_size.width_el;
             cfg.tile_height_sw = tile_size.height_el;
@@ -640,7 +643,8 @@ hk_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    result = hk_image_view_init(
-      dev, view, pCreateInfo->flags & VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+      dev, view,
+      pCreateInfo->flags & VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
       pCreateInfo);
    if (result != VK_SUCCESS) {
       hk_DestroyImageView(_device, hk_image_view_to_handle(view), pAllocator);

@@ -53,10 +53,14 @@
 #include "pipe/p_screen.h"
 #include "dri_screen.h"
 
+#include "gbm_backend_abi.h"
+
 /* For importing wl_buffer */
 #if HAVE_WAYLAND_PLATFORM
 #include "wayland-drm.h"
 #endif
+
+static const struct gbm_core *core;
 
 static GLboolean
 dri_validate_egl_image(void *image, void *data)
@@ -233,67 +237,35 @@ static const __DRIextension *gbm_dri_screen_extensions[] = {
    NULL,
 };
 
-static struct dri_extension_match dri_core_extensions[] = {
-   { __DRI2_FLUSH, 1, offsetof(struct gbm_dri_device, flush), false },
-};
-
-const __DRIextension **
-dri_loader_get_extensions(const char *driver_name);
-
-static const __DRIextension **
-dri_open_driver(struct gbm_dri_device *dri)
-{
-   /* Temporarily work around dri driver libs that need symbols in libglapi
-    * but don't automatically link it in.
-    */
-   /* XXX: Library name differs on per platforms basis. Update this as
-    * osx/cygwin/windows/bsd gets support for GBM..
-    */
-   dlopen("libglapi.so.0", RTLD_LAZY | RTLD_GLOBAL);
-
-   return dri_loader_get_extensions(dri->driver_name);
-}
-
 static int
 dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool driver_name_is_inferred)
 {
    bool swrast = driver_name == NULL; /* If it's pure swrast, not just swkms. */
+   enum dri_screen_type type = DRI_SCREEN_SWRAST;
+   if (!swrast) {
+      if (!strcmp(driver_name, "zink"))
+         type = DRI_SCREEN_KOPPER;
+      else if (!strcmp(driver_name, "kms_swrast"))
+         type = DRI_SCREEN_KMS_SWRAST;
+      else
+         type = DRI_SCREEN_DRI3;
+   }
 
    dri->driver_name = swrast ? strdup("swrast") : driver_name;
 
-   const __DRIextension **extensions = dri_open_driver(dri);
-   if (!extensions) {
-      if (driver_name_is_inferred)
-         fprintf(stderr, "MESA-LOADER: gbm: failed to open %s: driver not built!\n", dri->driver_name);
-      goto fail;
-   }
-
    dri->swrast = swrast;
 
-   dri->driver_extensions = extensions;
    dri->loader_extensions = gbm_dri_screen_extensions;
    dri->screen = driCreateNewScreen3(0, swrast ? -1 : dri->base.v0.fd,
                                              dri->loader_extensions,
-                                             dri->driver_extensions,
-                                             &dri->driver_configs, driver_name_is_inferred, dri);
+                                             type,
+                                             &dri->driver_configs, driver_name_is_inferred, true, dri);
    if (dri->screen == NULL)
       goto fail;
-
-   if (!swrast) {
-      extensions = driGetExtensions(dri->screen);
-      if (!loader_bind_extensions(dri, dri_core_extensions,
-                                  ARRAY_SIZE(dri_core_extensions),
-                                  extensions)) {
-         goto free_screen;
-      }
-   }
 
    dri->lookup_user_data = NULL;
 
    return 0;
-
-free_screen:
-   driDestroyScreen(dri->screen);
 
 fail:
    free(dri->driver_name);
@@ -356,7 +328,7 @@ static const struct gbm_dri_visual gbm_dri_visuals_table[] = {
 static int
 gbm_format_to_dri_format(uint32_t gbm_format)
 {
-   gbm_format = gbm_core.v0.format_canonicalize(gbm_format);
+   gbm_format = core->v0.format_canonicalize(gbm_format);
    for (size_t i = 0; i < ARRAY_SIZE(gbm_dri_visuals_table); i++) {
       if (gbm_dri_visuals_table[i].gbm_format == gbm_format)
          return gbm_dri_visuals_table[i].dri_image_format;
@@ -376,7 +348,7 @@ gbm_dri_is_format_supported(struct gbm_device *gbm,
    if ((usage & GBM_BO_USE_CURSOR) && (usage & GBM_BO_USE_RENDERING))
       return 0;
 
-   format = gbm_core.v0.format_canonicalize(format);
+   format = core->v0.format_canonicalize(format);
    if (gbm_format_to_dri_format(format) == 0)
       return 0;
 
@@ -412,7 +384,7 @@ gbm_dri_get_format_modifier_plane_count(struct gbm_device *gbm,
    if (!dri->has_dmabuf_import)
       return -1;
 
-   format = gbm_core.v0.format_canonicalize(format);
+   format = core->v0.format_canonicalize(format);
    if (gbm_format_to_dri_format(format) == 0)
       return -1;
 
@@ -734,7 +706,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
       /* GBM's GBM_FORMAT_* tokens are a strict superset of the DRI FourCC
        * tokens accepted by createImageFromDmaBufs, except for not supporting
        * the sARGB format. */
-      fourcc = gbm_core.v0.format_canonicalize(fd_data->format);
+      fourcc = core->v0.format_canonicalize(fd_data->format);
 
       image = dri2_from_dma_bufs(dri->screen,
                                  fd_data->width,
@@ -762,7 +734,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
       /* GBM's GBM_FORMAT_* tokens are a strict superset of the DRI FourCC
        * tokens accepted by createImageFromDmaBufs, except for not supporting
        * the sARGB format. */
-      fourcc = gbm_core.v0.format_canonicalize(fd_data->format);
+      fourcc = core->v0.format_canonicalize(fd_data->format);
 
       image = dri2_from_dma_bufs(dri->screen, fd_data->width,
                                                  fd_data->height, fourcc,
@@ -895,7 +867,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
    uint64_t *mods_filtered = NULL;
    unsigned int count_filtered = 0;
 
-   format = gbm_core.v0.format_canonicalize(format);
+   format = core->v0.format_canonicalize(format);
 
    if (usage & GBM_BO_USE_WRITE || !dri->has_dmabuf_export)
       return create_dumb(gbm, width, height, format, usage);
@@ -923,8 +895,14 @@ gbm_dri_bo_create(struct gbm_device *gbm,
       dri_use |= __DRI_IMAGE_USE_LINEAR;
    if (usage & GBM_BO_USE_PROTECTED)
       dri_use |= __DRI_IMAGE_USE_PROTECTED;
-   if (usage & GBM_BO_USE_FRONT_RENDERING)
+   if (usage & GBM_BO_USE_FRONT_RENDERING) {
+      assert (!(usage & GBM_BO_EXPLICIT_FLUSH));
       dri_use |= __DRI_IMAGE_USE_FRONT_RENDERING;
+   }
+   if (usage & GBM_BO_EXPLICIT_FLUSH) {
+      assert (!(usage & GBM_BO_USE_FRONT_RENDERING));
+      dri_use |= __DRI_IMAGE_USE_BACKBUFFER;
+   }
 
    /* Gallium drivers requires shared in order to get the handle/stride */
    dri_use |= __DRI_IMAGE_USE_SHARE;
@@ -1092,7 +1070,7 @@ gbm_dri_bo_unmap(struct gbm_bo *_bo, void *map_data)
     * on the mapping context. Since there is no explicit gbm flush
     * mechanism, we need to flush here.
     */
-   dri->flush->flush_with_flags(dri->context, NULL, __DRI2_FLUSH_CONTEXT, 0);
+   dri_flush(dri->context, NULL, __DRI2_FLUSH_CONTEXT, 0);
 }
 
 
@@ -1127,8 +1105,8 @@ gbm_dri_surface_create(struct gbm_device *gbm,
    surf->base.gbm = gbm;
    surf->base.v0.width = width;
    surf->base.v0.height = height;
-   surf->base.v0.format = gbm_core.v0.format_canonicalize(format);
-   surf->base.v0.flags = flags;
+   surf->base.v0.format = core->v0.format_canonicalize(format);
+   surf->base.v0.flags = flags | GBM_BO_EXPLICIT_FLUSH;
    if (!modifiers) {
       assert(!count);
       return &surf->base;
@@ -1185,13 +1163,6 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
    int ret;
    bool force_sw;
 
-   /*
-    * Since the DRI backend is built-in to the loader, the loader ABI version is
-    * guaranteed to match this backend's ABI version
-    */
-   assert(gbm_core.v0.core_version == GBM_BACKEND_ABI_VERSION);
-   assert(gbm_core.v0.core_version == gbm_backend_version);
-
    dri = calloc(1, sizeof *dri);
    if (!dri)
       return NULL;
@@ -1239,7 +1210,7 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
 
    struct dri_screen *screen = dri_screen(dri->screen);
    struct pipe_screen *pscreen = screen->base.screen;
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
       dri->has_dmabuf_import = true;
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT)
@@ -1260,4 +1231,12 @@ struct gbm_backend gbm_dri_backend = {
    .v0.backend_version = GBM_BACKEND_ABI_VERSION,
    .v0.backend_name = "dri",
    .v0.create_device = dri_device_create,
+};
+
+struct gbm_backend * gbmint_get_backend(const struct gbm_core *gbm_core);
+
+PUBLIC struct gbm_backend *
+gbmint_get_backend(const struct gbm_core *gbm_core) {
+   core = gbm_core;
+   return &gbm_dri_backend;
 };
